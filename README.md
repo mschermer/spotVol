@@ -3,8 +3,9 @@ spotVol
 
 Repository for R package spotVol, which will be developed during the Google Summer of Code 2014
 
+Overview: https://www.google-melange.com/gsoc/project/details/google/gsoc2014/maarten473/5668600916475904
 
-Info (copied from http://rwiki.sciviews.org/doku.php?id=developers:projects:gsoc2014:spotvol):
+More information (copied from http://rwiki.sciviews.org/doku.php?id=developers:projects:gsoc2014:spotvol):
 
 Spot volatility estimation: Methods and applications
 
@@ -19,10 +20,15 @@ Description
 Spot volatility estimates are important for highfrequency trading signal generation and risk management. Several spot volatility estimators have been proposed over the last years. This project aims at implementing them in the R package highfrequency:
 
 i. The stochastic volatility approach of Beltratti and Morana (2001), which, in particular includes both deterministic and stochastic periodic terms. The stochastic volatility model can be casted in state space form and estimated by maximum likelihood.
+
 ii. The non-parametric kernel approach of Kristensen (2010).
+
 iii. The piecewise constant volatility approach in Fried (2012).
+
 iv. The kalman filter of periodic intraday volatility in Bos, Janus and Koopman (2012).
+
 v. The GARCH + periodicity factor of Giot (2005), Chu and Lam (2011) and So and Xu (2013).
+
 vi. Periodic egarch model proposed by Bollerslev and Ghysels (1996).
 
 Besides estimation functions, the project aims at creating simulation functions to generate highfrequency data according to various highfrequency models with periodicity in the volatility of the diffusion.
