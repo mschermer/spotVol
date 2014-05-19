@@ -1,1 +1,0 @@
-Testing GitHub integration with RStudio
