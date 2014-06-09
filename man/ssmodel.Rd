@@ -3,7 +3,7 @@
 \alias{ssmodel}
 \title{Generate state space model}
 \usage{
-ssmodel(par_t, days, N = 288, P = 5)
+ssmodel(par_t, days, N = 288, P1 = 5, P2 = 5)
 }
 \description{
 This function creates the state space matrices from the input parameters.

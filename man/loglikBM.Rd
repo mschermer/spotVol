@@ -3,7 +3,7 @@
 \alias{loglikBM}
 \title{Calculate log likelihood using Kalman Filter}
 \usage{
-loglikBM(par_t, yt, days, N = 288, P = 5)
+loglikBM(par_t, yt, days, N = 288, P1 = 5, P2 = 5)
 }
 \description{
 This function returns the average log likehood value of the stochastic periodicity model, given the input parameters.

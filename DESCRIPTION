@@ -1,9 +1,14 @@
-Package: spotvol
+Package: spotvolatility
 Title: Estimate Spot Volatility
 Version: 0.1
-Authors@R: "First Last <first.last@example.com> [aut, cre]"
-Description: What the package does (paragraph)
+Author: "Maarten Schermer <m.j.a.schermer@gmail.com>"
+Description: The spotvolatility package offers several methods to estimate spot
+    volatility and its intraday seasonality, using high-frequency data.
 Depends:
-    R (>= 3.0.3)
-License: What license is it under?
+    R (>= 3.0.3),
+    highfrequency,
+    timeDate,
+    chron,
+    FKF
+License: <TBD>
 LazyData: true

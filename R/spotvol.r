@@ -43,7 +43,7 @@ spotvol =  function(pdata, dailyvol = "bipower", periodicvol = "TML", on = "minu
 
   out = switch(method, 
            detper = detper(mR, cDays, dailyvol = dailyvol, periodicvol = periodicvol, dummies = dummies, P1 = P1, P2 = P2), 
-           stochper = stochper(mR, P = max(P1,P2), init = init))
+           stochper = stochper(mR, P1 = P1, P2= P2, init = init))
   
   return(out)
 }
@@ -94,7 +94,7 @@ detper = function(mR, cDays, dailyvol = "bipower", periodicvol = "TML", dummies 
 #' Stochastic periodicity model
 #' 
 #' This function estimates the spot volatility by using the stochastic periodcity model of Beltratti & Morana (2001)
-stochper =  function(mR, init=NULL, P=5) 
+stochper =  function(mR, init = NULL, P1 = 5, P2 = 5) 
 {
   require(FKF)
   N = ncol(mR)
@@ -128,10 +128,10 @@ stochper =  function(mR, init=NULL, P=5)
   
   # transform parameters to allow for unrestricted optimization (domain -Inf to Inf)
 
-  opt <- optim(par_t, loglikBM, yt = rvector, N = N, days = days, P = P, method="BFGS")
+  opt <- optim(par_t, loglikBM, yt = rvector, N = N, days = days, P1 = P1, P2 = P2, method="BFGS", control=list(trace=1, maxit=500))
   
   # recreate model to obtain volatility estimates
-  ss <- ssmodel(opt$par, days, N)
+  ss <- ssmodel(opt$par, days, N, P1 = P1, P2 = P2)
   kf <- fkf(a0 = ss$a0, P0 = ss$P0, dt = ss$dt, ct = ss$ct, Tt = ss$Tt, Zt = ss$Zt, 
             HHt = ss$HHt, GGt = ss$GGt, yt = matrix(rvector, ncol = length(rvector)))
   sigmahat <- as.vector(exp((ss$Zt%*%kf$at[,1:(N*days)] + ss$ct + 1.27)/2))
@@ -148,9 +148,9 @@ stochper =  function(mR, init=NULL, P=5)
 #' Calculate log likelihood using Kalman Filter
 #' 
 #' This function returns the average log likehood value of the stochastic periodicity model, given the input parameters.
-loglikBM <- function(par_t, yt, days, N = 288, P = 5)
+loglikBM <- function(par_t, yt, days, N = 288, P1 = 5, P2 = 5)
 {
-  ss <- ssmodel(par_t, days, N, P)
+  ss <- ssmodel(par_t, days, N, P1 = P1, P2 = P2)
   yt = matrix(yt, ncol = length(yt))
   kf <- fkf(a0 = ss$a0, P0 = ss$P0, dt = ss$dt, ct = ss$ct, Tt = ss$Tt, Zt = ss$Zt, HHt = ss$HHt, GGt = ss$GGt, yt = yt)
   #print(kf$logLik/length(yt))
@@ -162,7 +162,7 @@ loglikBM <- function(par_t, yt, days, N = 288, P = 5)
 #' 
 #' This function creates the state space matrices from the input parameters.
 #' The output is in the format used by the FKF package.
-ssmodel <- function(par_t, days, N = 288, P = 5)
+ssmodel <- function(par_t, days, N = 288, P1 = 5, P2 = 5)
 {
   par <- c(exp(par_t["sigma"]), exp(par_t["sigma_mu"]), exp(par_t["sigma_h"]), exp(par_t["sigma_k"]), 
            exp(par_t["phi"])/(1+exp(par_t["phi"])), exp(par_t["rho"])/(1+exp(par_t["rho"])), par_t[7:18])
@@ -186,9 +186,13 @@ ssmodel <- function(par_t, days, N = 288, P = 5)
   M1 <- (2*n)/(N+1)
   M2 <- (6*n^2)/((N+1)*(N+2))
   c2 <- par["mu1"]*M1 + par["mu2"]*M2
-  for (k in 2:P)
+  for (k in 2:P1)
   {
-      c2 <- c2 + par[paste("delta_c", k, sep="")]*cos(k*lambda*n) + par[paste("delta_s", k, sep="")]*sin(k*lambda*n)
+      c2 <- c2 + par[paste("delta_c", k, sep="")]*cos(k*lambda*n) 
+  }
+  for (p in 2:P2)
+  {
+      c2 <- c2 + par[paste("delta_s", p, sep="")]*sin(p*lambda*n)
   }
   ct <- matrix(ct + c2, ncol = N*days)
   
