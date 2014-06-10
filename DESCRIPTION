@@ -6,9 +6,6 @@ Description: The spotvolatility package offers several methods to estimate spot
     volatility and its intraday seasonality, using high-frequency data.
 Depends:
     R (>= 3.0.3),
-    highfrequency,
-    timeDate,
-    chron,
-    FKF
+    xts
 License: <TBD>
 LazyData: true

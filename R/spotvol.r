@@ -1,6 +1,47 @@
+#' Spot volatility estimation
+#' 
+#' The \code{spotvolatility} package offers several methods to estimate spotvolatility
+#' and its intraday seasonality, using high-frequency data.
+#' 
+#' @details
+#' The following spot volatility estimation methods have been implemented:
+#' 
+#' @section Deterministic periodicity:
+#' The spot volatility is decomposed into a a deterministic periodic factor f_{i}
+#'  (identical for every day in the sample) and a daily factor s_{t} 
+#'  (identical for all observations within a day). Both components are then
+#'  estimated separately. For more details, see Taylor and Xu (1997) and 
+#'  Andersen and Bollerslev (1997). The jump robust versions by Boudt et al. (2011)
+#'  have also been implemented.
+#' 
+#' @section Stochastic periodicity:
+#' This method by Beltratti and Morana (2001) assumes the periodicity factor to be stochastic.
+#' The spot volatility estimation is split into four components: a random walk, an autoregressive
+#' process, a stochastic cyclical process and a deterministic cyclical process. The model is 
+#' estimated using a quasi-maximum likelihood method based on the Kalman Filter. The package
+#' \code{FKF} is used to apply the Kalman filter.
+#' 
+#' @references
+#' Andersen, T. G. and T. Bollerslev (1997). Intraday periodicity and volatility
+#' persistence in financial markets. Journal of Empirical Finance 4, 115-158.
+#' 
+#' Beltratti, A. and C. Morana (2001). Deterministic and stochastic methods for estimation
+#' of intraday seasonal components with high frequency data. Economic Notes 30, 205-234.
+#' 
+#' Boudt K., Croux C. and Laurent S. (2011). Robust estimation of intraweek periodicity
+#' in volatility and jump detection. Journal of Empirical Finance 18, 353-367.
+#' 
+#' Taylor, S. J. and X. Xu (1997). The incremental volatility information in one million
+#' foreign exchange quotations. Journal of Empirical Finance 4, 317-340.
+#' 
+#' @docType package
+#' @name spotvolatility
+#' @import highfrequency FKF chron timeDate
+NULL
+
 #' spotvol
 #'
-#' Estimating Spot Volatility
+#' Estimate spot volatility
 #' 
 #' @export
 #' @examples
@@ -13,13 +54,10 @@
 #' plot(vol1$spotvol, type="l")
 #' lines(vol2$spotvol, col="red")
 spotvol =  function(pdata, dailyvol = "bipower", periodicvol = "TML", on = "minutes", 
-                    k = 5, dummies = FALSE, P1 = 4, P2 = 2,  marketopen = "09:30:00", 
-                    marketclose = "16:00:00", method = "detper", init=NULL) 
+                    k = 5, dummies = FALSE, P1 = 5, P2 = 5,  marketopen = "09:30:00", 
+                    marketclose = "16:00:00", method = "detper", init=list()) 
 {
   Sys.setenv(TZ="GMT") # only for convenience during testing
-  require(chron);
-  require(timeDate);
-  require(highfrequency);
   dates = unique(format(time(pdata), "%Y-%m-%d"))
   cDays = length(dates)
   rdata = mR = c()
@@ -94,9 +132,8 @@ detper = function(mR, cDays, dailyvol = "bipower", periodicvol = "TML", dummies 
 #' Stochastic periodicity model
 #' 
 #' This function estimates the spot volatility by using the stochastic periodcity model of Beltratti & Morana (2001)
-stochper =  function(mR, init = NULL, P1 = 5, P2 = 5) 
+stochper =  function(mR, init = list(), P1 = 5, P2 = 5) 
 {
-  require(FKF)
   N = ncol(mR)
   days = nrow(mR)
   
@@ -104,29 +141,35 @@ stochper =  function(mR, init = NULL, P1 = 5, P2 = 5)
   rvector = as.vector(t(logr2)) 
   lambda = (2*pi)/N;
   
-  if(is.null(init))
+  # default starting values of parameters
+  sp <- list(sigma = 0.03,
+    sigma_mu = 0.005,
+    sigma_h = 0.007,
+    sigma_k = 0.06,
+    phi = 0.194,
+    rho = 0.986,
+    mu = c(1.87, -0.42),
+    delta_c = rep(0, max(1,P1)),
+    delta_s = rep(0, max(1,P2)))
+  
+  # replace if user has specified different values
+  sp[names(init)] <- init
+  
+  # check input
+  for (i in c("sigma", "sigma_mu", "sigma_h", "sigma_k", "phi", "rho"))
   {
-    sigma <- 0.03
-    sigma_mu <- 0.005
-    sigma_h <- 0.007
-    sigma_k <- 0.06
-    phi <- 0.194
-    rho <- 0.986
-    mu <- c(1.87, -0.42)
-    delta_c <- c(0.25, -0.05, -0.2, 0.13, 0.02)
-    delta_s <- c(-1.2, 0.11, 0.26, -0.03, 0.08) 
-    
-    par_t <- c(sigma = log(sigma), sigma_mu = log(sigma_mu), sigma_h = log(sigma_h), sigma_k = log(sigma_k),
-               phi = log(phi/(1-phi)), rho = log(rho/(1-rho)), mu = mu, delta_c = delta_c, delta_s = delta_s)
+      if (sapply(sp, length)[i] != 1) stop(paste(i, " must be a scalar"))  
   }
-  else
-  {
-    par_t <- c(sigma = log(init$sigma), sigma_mu = log(init$sigma_mu), sigma_h = log(init$sigma_h),
-               sigma_k = log(init$sigma_k), phi = log(init$phi/(1-init$phi)), rho = log(init$rho/(1-init$rho)),
-               mu = init$mu, delta_c = init$delta_c, delta_s = init$delta_s)   
-  }
+  if (length(sp$mu) != 2) stop("mu must have length 2")
+  if (length(sp$delta_c) != P1 & P1 > 0) stop("delta_c must have length equal to P1")
+  if (length(sp$delta_s) != P2 & P2 > 0) stop("delta_s must have length equal to P2")
+  if (length(sp$delta_c) < 1) stop("delta_c must at least have length 1")
+  if (length(sp$delta_s) < 1) stop("delta_s must at least have length 1")
   
   # transform parameters to allow for unrestricted optimization (domain -Inf to Inf)
+  par_t <- c(sigma = log(sp$sigma), sigma_mu = log(sp$sigma_mu), sigma_h = log(sp$sigma_h),
+               sigma_k = log(sp$sigma_k), phi = log(sp$phi/(1-sp$phi)), rho = log(sp$rho/(1-sp$rho)),
+               mu = sp$mu, delta_c = sp$delta_c, delta_s = sp$delta_s)   
 
   opt <- optim(par_t, loglikBM, yt = rvector, N = N, days = days, P1 = P1, P2 = P2, method="BFGS", control=list(trace=1, maxit=500))
   
@@ -137,7 +180,7 @@ stochper =  function(mR, init = NULL, P1 = 5, P2 = 5)
   sigmahat <- as.vector(exp((ss$Zt%*%kf$at[,1:(N*days)] + ss$ct + 1.27)/2))
   
   estimates <- c(exp(opt$par["sigma"]), exp(opt$par["sigma_mu"]), exp(opt$par["sigma_h"]), exp(opt$par["sigma_k"]),
-                 exp(opt$par["phi"])/(1+exp(opt$par["phi"])), exp(opt$par["rho"])/(1+exp(opt$par["rho"])), opt$par[7:18])
+                 exp(opt$par["phi"])/(1+exp(opt$par["phi"])), exp(opt$par["rho"])/(1+exp(opt$par["rho"])), opt$par[-(1:6)])
 
   out <- list(spotvol = sigmahat,
               par = estimates)
@@ -153,8 +196,6 @@ loglikBM <- function(par_t, yt, days, N = 288, P1 = 5, P2 = 5)
   ss <- ssmodel(par_t, days, N, P1 = P1, P2 = P2)
   yt = matrix(yt, ncol = length(yt))
   kf <- fkf(a0 = ss$a0, P0 = ss$P0, dt = ss$dt, ct = ss$ct, Tt = ss$Tt, Zt = ss$Zt, HHt = ss$HHt, GGt = ss$GGt, yt = yt)
-  #print(kf$logLik/length(yt))
-  #print(par_t)
   return(-kf$logLik/length(yt))
 }
 
@@ -165,9 +206,11 @@ loglikBM <- function(par_t, yt, days, N = 288, P1 = 5, P2 = 5)
 ssmodel <- function(par_t, days, N = 288, P1 = 5, P2 = 5)
 {
   par <- c(exp(par_t["sigma"]), exp(par_t["sigma_mu"]), exp(par_t["sigma_h"]), exp(par_t["sigma_k"]), 
-           exp(par_t["phi"])/(1+exp(par_t["phi"])), exp(par_t["rho"])/(1+exp(par_t["rho"])), par_t[7:18])
+           exp(par_t["phi"])/(1+exp(par_t["phi"])), exp(par_t["rho"])/(1+exp(par_t["rho"])), par_t[-(1:6)])
   lambda=(2*pi)/288
   a0 <- c(0, 0, par["delta_c1"], par["delta_s1"])
+  if (P1 == 0) a0[3] <- par["delta_c"]
+  if (P2 == 0) a0[4] <- par["delta_s"]   
   m <- length(a0)
   P0 <- Tt <- Ht <- matrix(0, m, m)
   diag(Tt) <- c(1, par["phi"], rep(par["rho"]*cos(lambda), 2))
@@ -186,19 +229,24 @@ ssmodel <- function(par_t, days, N = 288, P1 = 5, P2 = 5)
   M1 <- (2*n)/(N+1)
   M2 <- (6*n^2)/((N+1)*(N+2))
   c2 <- par["mu1"]*M1 + par["mu2"]*M2
-  for (k in 2:P1)
+  if (P1 > 1)
   {
+    for (k in 2:P1)
+    {
       c2 <- c2 + par[paste("delta_c", k, sep="")]*cos(k*lambda*n) 
+    }  
   }
-  for (p in 2:P2)
+  if (P2 > 1)
   {
+    for (p in 2:P2)
+    {
       c2 <- c2 + par[paste("delta_s", p, sep="")]*sin(p*lambda*n)
+    }  
   }
   ct <- matrix(ct + c2, ncol = N*days)
   
   return(list(a0 = a0, P0 = P0, Tt = Tt, Zt = Zt, GGt = GGt, HHt = HHt, dt = dt, ct = ct))
 }
-
 
 
 ### auxiliary internal functions copied from highfrequency package

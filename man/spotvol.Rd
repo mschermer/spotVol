@@ -4,11 +4,11 @@
 \title{spotvol}
 \usage{
 spotvol(pdata, dailyvol = "bipower", periodicvol = "TML", on = "minutes",
-  k = 5, dummies = FALSE, P1 = 4, P2 = 2, marketopen = "09:30:00",
-  marketclose = "16:00:00", method = "detper", init = NULL)
+  k = 5, dummies = FALSE, P1 = 5, P2 = 5, marketopen = "09:30:00",
+  marketclose = "16:00:00", method = "detper", init = list())
 }
 \description{
-Estimating Spot Volatility
+Estimate spot volatility
 }
 \examples{
 data(sample)
