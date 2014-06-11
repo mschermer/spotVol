@@ -43,22 +43,36 @@ NULL
 #'
 #' Estimate spot volatility
 #' 
+#' @param data \code{xts} object, containing a price or return series. If the data consists 
+#' of returns, set \code{makeReturns} to \code{FALSE}.
+#' @param makeReturns boolean, if \code{TRUE} the function will calculate returns from the price
+#' series \code{data}. If \code{data} already consists of returns, set to \code{FALSE}.
+#' @param method specifies which method will be used to estimate the spot volatility. Options
+#' include \code{"detper"} and \code{"stochper"}. See Details.
+#' @param on string indicating the time scale in which \code{k} is expressed.
+#'  Possible values are: \code{"secs", "seconds", "mins", "minutes", "hours"}.
+#' @param k positive integer, indicating the number of periods to aggregate over.
+#'  E.g. to aggregate an \code{xts} object to the 5 minute frequency, set \code{k = 5} and
+#'  \code{on = "minutes"}.
+#' @param marketopen the market opening time. By default, \code{marketopen = "09:30:00"}.
+#' @param marketclose the market closing time. By default, \code{marketclose = "16:00:00"}.
+#' @param ... method-specific parameters (see Details).
+#' 
 #' @export
 #' @examples
-#' data(sample)
-#' vol1 <- spotvol(sample)
+#' data(sample_prices_5min)
+#' vol1 <- spotvol(sample_prices_5min)
 #' init = list(sigma = 0.03, sigma_mu = 0.005, sigma_h = 0.007,
 #'    sigma_k = 0.06, phi = 0.194, rho = 0.986, mu = c(1.87,-0.42),
 #'    delta_c = c(0.25, -0.05, -0.2, 0.13, 0.02), delta_s = c(-1.2, 0.11, 0.26, -0.03, 0.08))
-#' vol2 <- spotvol(sample, method = "stochper", init = init)
+#' vol2 <- spotvol(sample_prices_5min, method = "stochper", init = init)
 #' plot(vol1$spotvol, type="l")
 #' lines(vol2$spotvol, col="red")
-spotvol =  function(pdata, dailyvol = "bipower", periodicvol = "TML", on = "minutes", 
-                    k = 5, dummies = FALSE, P1 = 5, P2 = 5,  marketopen = "09:30:00", 
-                    marketclose = "16:00:00", method = "detper", init=list()) 
+spotvol =  function(data, makeReturns = TRUE, method = "detper", on = "minutes", k = 5,
+                    marketopen = "09:30:00", marketclose = "16:00:00", ...)  
 {
   Sys.setenv(TZ="GMT") # only for convenience during testing
-  dates = unique(format(time(pdata), "%Y-%m-%d"))
+  dates = unique(format(time(data), "%Y-%m-%d"))
   cDays = length(dates)
   rdata = mR = c()
   if(on=="minutes"){
@@ -67,38 +81,50 @@ spotvol =  function(pdata, dailyvol = "bipower", periodicvol = "TML", on = "minu
   if(as.character(tail(intraday,1))!=marketclose){intraday=c(intraday,marketclose)}
   intraday = intraday[2:length(intraday)];
   for (d in 1:cDays) {
-    pdatad = pdata[as.character(dates[d])]
-    pdatad = aggregatePrice(pdatad, on = on, k = k , marketopen = marketopen, marketclose = marketclose)
+    datad = data[as.character(dates[d])]
+    datad = aggregatePrice(datad, on = on, k = k , marketopen = marketopen, marketclose = marketclose)
     z = xts( rep(1,length(intraday)) , order.by = timeDate( paste(dates[d],as.character(intraday),sep="") , format = "%Y-%m-%d %H:%M:%S"))
-    pdatad = merge.xts( z , pdatad )$pdatad
-    pdatad = na.locf(pdatad)
-    rdatad = makeReturns(pdatad)
-    rdatad = rdatad[time(rdatad) > min(time(rdatad))]
-    rdata = rbind(rdata, rdatad)
-    mR = rbind(mR, as.numeric(rdatad))
+    datad = merge.xts( z , datad )$datad
+    datad = na.locf(datad)
+    if (makeReturns)
+    {
+      rdatad = makeReturns(datad)
+      rdatad = rdatad[time(rdatad) > min(time(rdatad))]
+      rdata = rbind(rdata, rdatad)
+      mR = rbind(mR, as.numeric(rdatad))
+    }
+    else 
+    {
+      rdata = rbind(rdata, datad)
+      mR = rbind(mR, as.numeric(datad))
+    } 
   }
   mR[is.na(mR)]=0
-
+  options <- list(...)
   out = switch(method, 
-           detper = detper(mR, cDays, dailyvol = dailyvol, periodicvol = periodicvol, dummies = dummies, P1 = P1, P2 = P2), 
-           stochper = stochper(mR, P1 = P1, P2= P2, init = init))
-  
+           detper = detper(mR, options = options), 
+           stochper = stochper(mR, options = options))  
   return(out)
 }
 
 #' Deterministic periodicity model
 #' 
-#' From the original spotVol function in highfrequency
-detper = function(mR, cDays, dailyvol = "bipower", periodicvol = "TML", dummies = FALSE, P1 = 4, P2 = 2)
+#' Modified spotVol function from highfrequency package
+detper = function(mR, options = list()) 
 {
+  # default options, replace if user-specified
+  op <- list(dailyvol = "bipower", periodicvol = "TML", dummies = FALSE, P1 = 5, P2 = 5)
+  op[names(options)] <- options 
+  
+  cDays = nrow(mR)
   M = ncol(mR)
-  if (cDays == 1) {
-    mR = as.numeric(rdata)
-    estimdailyvol = switch(dailyvol, 
+  if (cDays == 1) { 
+    mR = as.numeric(mR)
+    estimdailyvol = switch(op$dailyvol, 
                            bipower = rBPCov(mR), 
                            medrv = medRV(mR), rv = RV(mR))
   }else {
-    estimdailyvol = switch(dailyvol, 
+    estimdailyvol = switch(op$dailyvol, 
                            bipower = apply(mR, 1, "rBPCov"),
                            medrv = apply(mR, 1, "medRV"), rv = apply(mR, 1, "RV"))
   }  
@@ -112,13 +138,13 @@ detper = function(mR, cDays, dailyvol = "bipower", periodicvol = "TML", dummies 
     # preferably no na is between
     selection = c( min(selection) : max(selection) )
     mstdR = mstdR[,selection]
-    estimperiodicvol_temp = diurnal(stddata = mstdR, method = periodicvol, 
-                                  dummies = dummies, P1 = P1, P2 = P2)[[1]]
+    estimperiodicvol_temp = diurnal(stddata = mstdR, method = op$periodicvol, 
+                                    dummies = op$dummies, P1 = op$P1, P2 = op$P2)[[1]]
     estimperiodicvol = rep(1,M)
     estimperiodicvol[selection] = estimperiodicvol_temp
     mfilteredR = mR/matrix(rep(estimperiodicvol, cDays), 
                          byrow = T, nrow = cDays)
-    estimdailyvol = switch(dailyvol, bipower = apply(mfilteredR, 1, "rBPCov"),
+    estimdailyvol = switch(op$dailyvol, bipower = apply(mfilteredR, 1, "rBPCov"),
                             medrv = apply(mfilteredR, 1, "medRV"), 
                             rv = apply(mfilteredR, 1, "RV"))
     out <- list(spotvol = rep(sqrt(estimdailyvol * (1/M)), each = M) * rep(estimperiodicvol, cDays),
@@ -132,8 +158,12 @@ detper = function(mR, cDays, dailyvol = "bipower", periodicvol = "TML", dummies 
 #' Stochastic periodicity model
 #' 
 #' This function estimates the spot volatility by using the stochastic periodcity model of Beltratti & Morana (2001)
-stochper =  function(mR, init = list(), P1 = 5, P2 = 5) 
+stochper =  function(mR, options = list()) 
 {
+  # default options, replace if user-specified
+  op <- list(init = list(), P1 = 5, P2 = 5)
+  op[names(options)] <- options 
+  
   N = ncol(mR)
   days = nrow(mR)
   
@@ -149,11 +179,11 @@ stochper =  function(mR, init = list(), P1 = 5, P2 = 5)
     phi = 0.194,
     rho = 0.986,
     mu = c(1.87, -0.42),
-    delta_c = rep(0, max(1,P1)),
-    delta_s = rep(0, max(1,P2)))
+    delta_c = rep(0, max(1,op$P1)),
+    delta_s = rep(0, max(1,op$P2)))
   
   # replace if user has specified different values
-  sp[names(init)] <- init
+  sp[names(op$init)] <- op$init
   
   # check input
   for (i in c("sigma", "sigma_mu", "sigma_h", "sigma_k", "phi", "rho"))
@@ -161,8 +191,8 @@ stochper =  function(mR, init = list(), P1 = 5, P2 = 5)
       if (sapply(sp, length)[i] != 1) stop(paste(i, " must be a scalar"))  
   }
   if (length(sp$mu) != 2) stop("mu must have length 2")
-  if (length(sp$delta_c) != P1 & P1 > 0) stop("delta_c must have length equal to P1")
-  if (length(sp$delta_s) != P2 & P2 > 0) stop("delta_s must have length equal to P2")
+  if (length(sp$delta_c) != op$P1 & op$P1 > 0) stop("delta_c must have length equal to P1")
+  if (length(sp$delta_s) != op$P2 & op$P2 > 0) stop("delta_s must have length equal to P2")
   if (length(sp$delta_c) < 1) stop("delta_c must at least have length 1")
   if (length(sp$delta_s) < 1) stop("delta_s must at least have length 1")
   
@@ -171,14 +201,15 @@ stochper =  function(mR, init = list(), P1 = 5, P2 = 5)
                sigma_k = log(sp$sigma_k), phi = log(sp$phi/(1-sp$phi)), rho = log(sp$rho/(1-sp$rho)),
                mu = sp$mu, delta_c = sp$delta_c, delta_s = sp$delta_s)   
 
-  opt <- optim(par_t, loglikBM, yt = rvector, N = N, days = days, P1 = P1, P2 = P2, method="BFGS", control=list(trace=1, maxit=500))
+  opt <- optim(par_t, loglikBM, yt = rvector, N = N, days = days, P1 = op$P1, P2 = op$P2, method="BFGS", control=list(trace=1, maxit=500))
   
   # recreate model to obtain volatility estimates
-  ss <- ssmodel(opt$par, days, N, P1 = P1, P2 = P2)
+  ss <- ssmodel(opt$par, days, N, P1 = op$P1, P2 = op$P2)
   kf <- fkf(a0 = ss$a0, P0 = ss$P0, dt = ss$dt, ct = ss$ct, Tt = ss$Tt, Zt = ss$Zt, 
             HHt = ss$HHt, GGt = ss$GGt, yt = matrix(rvector, ncol = length(rvector)))
   sigmahat <- as.vector(exp((ss$Zt%*%kf$at[,1:(N*days)] + ss$ct + 1.27)/2))
   
+  # transform parameter estimates back
   estimates <- c(exp(opt$par["sigma"]), exp(opt$par["sigma_mu"]), exp(opt$par["sigma_h"]), exp(opt$par["sigma_k"]),
                  exp(opt$par["phi"])/(1+exp(opt$par["phi"])), exp(opt$par["rho"])/(1+exp(opt$par["rho"])), opt$par[-(1:6)])
 
@@ -462,12 +493,22 @@ center = function()
   return( integrate(f,-Inf,Inf)$value )
 }
 
-#' Sample data
+#' Sample prices data
 #' 
 #' 'sample_real5minprices' from highfrequency package
 #' 
 #' @docType data
-#' @name sample
-#' @usage data(sample)
+#' @name sample_prices_5min
+#' @usage data(sample_prices_5min)
+#' @format xts
+NULL
+
+#' Sample returns data
+#' 
+#' EUR/USD returns from January to September 2004
+#' 
+#' @docType data
+#' @name sample_returns_5min
+#' @usage data(sample_returns_5min)
 #' @format xts
 NULL

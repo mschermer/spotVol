@@ -3,7 +3,7 @@
 \alias{stochper}
 \title{Stochastic periodicity model}
 \usage{
-stochper(mR, init = list(), P1 = 5, P2 = 5)
+stochper(mR, options = list())
 }
 \description{
 This function estimates the spot volatility by using the stochastic periodcity model of Beltratti & Morana (2001)

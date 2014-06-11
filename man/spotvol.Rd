@@ -3,20 +3,42 @@
 \alias{spotvol}
 \title{spotvol}
 \usage{
-spotvol(pdata, dailyvol = "bipower", periodicvol = "TML", on = "minutes",
-  k = 5, dummies = FALSE, P1 = 5, P2 = 5, marketopen = "09:30:00",
-  marketclose = "16:00:00", method = "detper", init = list())
+spotvol(data, makeReturns = TRUE, method = "detper", on = "minutes",
+  k = 5, marketopen = "09:30:00", marketclose = "16:00:00", ...)
+}
+\arguments{
+\item{data}{\code{xts} object, containing a price or return series. If the data consists
+of returns, set \code{makeReturns} to \code{FALSE}.}
+
+\item{makeReturns}{boolean, if \code{TRUE} the function will calculate returns from the price
+series \code{data}. If \code{data} already consists of returns, set to \code{FALSE}.}
+
+\item{method}{specifies which method will be used to estimate the spot volatility. Options
+include \code{"detper"} and \code{"stochper"}. See Details.}
+
+\item{on}{string indicating the time scale in which \code{k} is expressed.
+Possible values are: \code{"secs", "seconds", "mins", "minutes", "hours"}.}
+
+\item{k}{positive integer, indicating the number of periods to aggregate over.
+E.g. to aggregate an \code{xts} object to the 5 minute frequency, set \code{k = 5} and
+\code{on = "minutes"}.}
+
+\item{marketopen}{the market opening time. By default, \code{marketopen = "09:30:00"}.}
+
+\item{marketclose}{the market closing time. By default, \code{marketclose = "16:00:00"}.}
+
+\item{...}{method-specific parameters (see Details).}
 }
 \description{
 Estimate spot volatility
 }
 \examples{
-data(sample)
-vol1 <- spotvol(sample)
+data(sample_prices_5min)
+vol1 <- spotvol(sample_prices_5min)
 init = list(sigma = 0.03, sigma_mu = 0.005, sigma_h = 0.007,
    sigma_k = 0.06, phi = 0.194, rho = 0.986, mu = c(1.87,-0.42),
    delta_c = c(0.25, -0.05, -0.2, 0.13, 0.02), delta_s = c(-1.2, 0.11, 0.26, -0.03, 0.08))
-vol2 <- spotvol(sample, method = "stochper", init = init)
+vol2 <- spotvol(sample_prices_5min, method = "stochper", init = init)
 plot(vol1$spotvol, type="l")
 lines(vol2$spotvol, col="red")
 }

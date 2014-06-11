@@ -3,10 +3,9 @@
 \alias{detper}
 \title{Deterministic periodicity model}
 \usage{
-detper(mR, cDays, dailyvol = "bipower", periodicvol = "TML",
-  dummies = FALSE, P1 = 4, P2 = 2)
+detper(mR, options = list())
 }
 \description{
-From the original spotVol function in highfrequency
+Modified spotVol function from highfrequency package
 }
 
