@@ -1,6 +1,6 @@
 #' Spot volatility estimation
 #' 
-#' The \code{spotvolatility} package offers several methods to estimate spotvolatility
+#' The \code{spotvolatility} package offers several methods to estimate spot volatility
 #' and its intraday seasonality, using high-frequency data.
 #' 
 #' @details
@@ -40,8 +40,74 @@
 NULL
 
 #' spotvol
+#' 
+#' @description
 #'
-#' Estimate spot volatility
+#' The \code{spotvol} function offers several methods to estimate spot volatility
+#' and its intraday seasonality, using high-frequency data. It returns an object of 
+#' class \code{spotvol}, which can contain various outputs, depending on the method
+#' used. See 'Details' for a description of each method. In any case, the output will
+#' contain the spot volatility estimates. 
+#' 
+#' The input can consist of price data or return data, either tick by tick or sampled at
+#' set intervals. The data will be converted to equispaced high-frequency returns \eqn{r_{t,i}}
+#' (read: the \eqn{i}th return on day \eqn{t}). 
+#' 
+#' @details The following estimation methods can be specified in \code{method}:
+#' 
+#' \strong{Deterministic periodicity method (\code{"detper"})}
+#' 
+#' Parameters:
+#' \tabular{ll}{
+#' \code{dailyvol} \tab A string specifying the estimation method for the daily component 
+#' \eqn{s_t}. Possible values are \code{"bipower", "rv", "medrv"}. Default = \code{"bipower"}. \cr
+#' \code{periodicvol} \tab A string specifying the estimation method for the component of intraday
+#' volatility, that depends in a deterministic way on the intraday time at which the return is observed.
+#' Possible values are \code{"TML", "SD", "WSD", "OLS"}. See Boudt et al. (2011) for details. Default = \code{"TML"}.\cr
+#' \code{P1} \tab A positive integer corresponding to the number of cosinus terms
+#'  used in the flexible Fourier specification of the periodicity function, 
+#'  see Andersen et al. (1997) for details. Default = 5. \cr
+#' \code{P2} \tab Same as \code{P1}, but for the sinus terms. Default = 5.\cr
+#' \code{dummies} \tab Boolean: in case it is \code{TRUE}, the parametric estimator of periodic standard
+#' deviation specifies the periodicity function as the sum of dummy variables corresponding to each intraday period.
+#' If it false, the parametric estimator uses the flexible Fourier specification. Default = \code{FALSE}.
+#' }
+#' Outputs (see 'Value' for a full description of each component):
+#' \itemize{
+#' \item{\code{spot}}
+#' \item{\code{daily}}
+#' \item{\code{periodic}}
+#' }
+#' The spot volatility is decomposed into a deterministic periodic factor \eqn{f_{i}} 
+#' (identical for every day in the sample) and a daily factor \eqn{s_{t}} (identical for all
+#' observations within a day). Both components are then estimated separately. For more
+#' details, see Taylor and Xu (1997) and Andersen and Bollerslev (1997). The jump robust
+#' versions by Boudt et al. (2011) have also been implemented.
+#' 
+#' \strong{Stochastic periodicity method (\code{"stochper"})}
+#' 
+#' Parameters:
+#' \tabular{ll}{
+#' \code{P1} \tab A positive integer corresponding to the number of cosinus terms
+#'  used in the flexible Fourier specification of the periodicity function. 
+#'  Default = 5. \cr
+#' \code{P2} \tab Same as \code{P1}, but for the sinus terms. Default = 5.\cr
+#' \code{init} \tab A named list of initial values to be used in the optimization routine (\code{"BFGS"}
+#' in \code{optim}). Default = \code{list(sigma = 0.03, sigma_mu = 0.005, sigma_h = 0.005, sigma_k = 0.05, 
+#' phi = 0.2, rho = 0.98, mu = c(2, -0.5), delta_c = rep(0, max(1,P1)), delta_s = rep(0, max(1,P2)))}.
+#' See Beltratti & Morana (2001) for a definition of each parameter. \code{init} can contain any number of
+#' these parameters. For parameters not specified in \code{init}, the default initial value will be used.
+#' }
+#' Outputs (see 'Value' for a full description of each component):
+#' \itemize{
+#' \item{\code{spot}}
+#' \item{\code{par}}
+#' }
+#' This method by Beltratti and Morana (2001) assumes the periodicity factor to be stochastic.
+#' The spot volatility estimation is split into four components: a random walk, an autoregressive
+#' process, a stochastic cyclical process and a deterministic cyclical process. The model is 
+#' estimated using a quasi-maximum likelihood method based on the Kalman Filter. The package
+#' \code{FKF} is used to apply the Kalman filter.
 #' 
 #' @param data \code{xts} object, containing a price or return series. If the data consists 
 #' of returns, set \code{makeReturns} to \code{FALSE}.
@@ -56,7 +122,35 @@ NULL
 #'  \code{on = "minutes"}.
 #' @param marketopen the market opening time. By default, \code{marketopen = "09:30:00"}.
 #' @param marketclose the market closing time. By default, \code{marketclose = "16:00:00"}.
-#' @param ... method-specific parameters (see Details).
+#' @param ... method-specific parameters (see 'Details').
+#' 
+#' @return
+#' A \code{spotvol} object, which is a list containing one or more of the following outputs,
+#' depending on the method used:
+#' 
+#' \code{spot}
+#' 
+#' An \code{xts} object containing spot volatility estimates \eqn{\sigma_{t,i}}, reported for each interval
+#' \eqn{i} between \code{marketopen} and \code{marketclose} for every day \eqn{t} in \code{data}. The length
+#' of the intervals is specifiedby \code{k} and \code{on}. Methods that provide this output: All.
+#' 
+#' \code{daily}
+#' 
+#' An \code{xts} object containing estimates of the daily volatility levels for each day \eqn{t} in \code{data}, 
+#' if the used method decomposed spot volatility into a daily and an intraday component. Methods that provide this
+#' output: \code{"detper"}.
+#' 
+#' \code{periodic}
+#' 
+#' Estimates of the intraday periodicity factor for each day interval \eqn{i} between \code{marketopen}
+#' and \code{marketclose}, if the spot volatility was decomposed into a daily and an intraday component.
+#' Methods that provide this output: \code{"detper"}.
+#' 
+#' \code{par}
+#' 
+#' A named list containing parameter estimates, for methods that estimate a parametric model. 
+#' Methods that provide this output: \code{"stochper"}.
+#' 
 #' 
 #' @export
 #' @examples
@@ -66,8 +160,21 @@ NULL
 #'    sigma_k = 0.06, phi = 0.194, rho = 0.986, mu = c(1.87,-0.42),
 #'    delta_c = c(0.25, -0.05, -0.2, 0.13, 0.02), delta_s = c(-1.2, 0.11, 0.26, -0.03, 0.08))
 #' vol2 <- spotvol(sample_prices_5min, method = "stochper", init = init)
-#' plot(vol1$spotvol, type="l")
-#' lines(vol2$spotvol, col="red")
+#' plot(vol1$spot, type="l")
+#' lines(vol2$spot, col="red")
+#' 
+#' @references
+#' Andersen, T. G. and T. Bollerslev (1997). Intraday periodicity and volatility
+#' persistence in financial markets. Journal of Empirical Finance 4, 115-158.
+#' 
+#' Beltratti, A. and C. Morana (2001). Deterministic and stochastic methods for estimation
+#' of intraday seasonal components with high frequency data. Economic Notes 30, 205-234.
+#' 
+#' Boudt K., Croux C. and Laurent S. (2011). Robust estimation of intraweek periodicity
+#' in volatility and jump detection. Journal of Empirical Finance 18, 353-367.
+#' 
+#' Taylor, S. J. and X. Xu (1997). The incremental volatility information in one million
+#' foreign exchange quotations. Journal of Empirical Finance 4, 317-340.
 spotvol =  function(data, makeReturns = TRUE, method = "detper", on = "minutes", k = 5,
                     marketopen = "09:30:00", marketclose = "16:00:00", ...)  
 {
@@ -78,8 +185,8 @@ spotvol =  function(data, makeReturns = TRUE, method = "detper", on = "minutes",
   if(on=="minutes"){
     intraday = seq(from=times(marketopen), to=times(marketclose), by=times(paste("00:0",k,":00",sep=""))) 
   }
-  if(as.character(tail(intraday,1))!=marketclose){intraday=c(intraday,marketclose)}
-  intraday = intraday[2:length(intraday)];
+  if(as.character(tail(intraday,1))!=marketclose) intraday=c(intraday,marketclose)
+  if(makeReturns) intraday = intraday[2:length(intraday)]
   for (d in 1:cDays) {
     datad = data[as.character(dates[d])]
     datad = aggregatePrice(datad, on = on, k = k , marketopen = marketopen, marketclose = marketclose)
@@ -104,6 +211,8 @@ spotvol =  function(data, makeReturns = TRUE, method = "detper", on = "minutes",
   out = switch(method, 
            detper = detper(mR, options = options), 
            stochper = stochper(mR, options = options))  
+  if("periodic" %in% names(out)) names(out$periodic) <- as.character(intraday)
+  
   return(out)
 }
 
@@ -147,9 +256,9 @@ detper = function(mR, options = list())
     estimdailyvol = switch(op$dailyvol, bipower = apply(mfilteredR, 1, "rBPCov"),
                             medrv = apply(mfilteredR, 1, "medRV"), 
                             rv = apply(mfilteredR, 1, "RV"))
-    out <- list(spotvol = rep(sqrt(estimdailyvol * (1/M)), each = M) * rep(estimperiodicvol, cDays),
-                dailyvol = estimdailyvol,
-                periodicvol = estimperiodicvol)
+    out <- list(spot = rep(sqrt(estimdailyvol * (1/M)), each = M) * rep(estimperiodicvol, cDays),
+                daily = estimdailyvol,
+                periodic = estimperiodicvol)
     class(out) <- "spotvol"
     return(out)
   }
@@ -174,11 +283,11 @@ stochper =  function(mR, options = list())
   # default starting values of parameters
   sp <- list(sigma = 0.03,
     sigma_mu = 0.005,
-    sigma_h = 0.007,
-    sigma_k = 0.06,
-    phi = 0.194,
-    rho = 0.986,
-    mu = c(1.87, -0.42),
+    sigma_h = 0.005,
+    sigma_k = 0.05,
+    phi = 0.2,
+    rho = 0.98,
+    mu = c(2, -0.5),
     delta_c = rep(0, max(1,op$P1)),
     delta_s = rep(0, max(1,op$P2)))
   
@@ -213,7 +322,7 @@ stochper =  function(mR, options = list())
   estimates <- c(exp(opt$par["sigma"]), exp(opt$par["sigma_mu"]), exp(opt$par["sigma_h"]), exp(opt$par["sigma_k"]),
                  exp(opt$par["phi"])/(1+exp(opt$par["phi"])), exp(opt$par["rho"])/(1+exp(opt$par["rho"])), opt$par[-(1:6)])
 
-  out <- list(spotvol = sigmahat,
+  out <- list(spot = sigmahat,
               par = estimates)
   class(out) <- "spotvol"
   return(out)
