@@ -131,8 +131,10 @@ init = list(sigma = 0.03, sigma_mu = 0.005, sigma_h = 0.007,
    sigma_k = 0.06, phi = 0.194, rho = 0.986, mu = c(1.87,-0.42),
    delta_c = c(0.25, -0.05, -0.2, 0.13, 0.02), delta_s = c(-1.2, 0.11, 0.26, -0.03, 0.08))
 vol2 <- spotvol(sample_prices_5min, method = "stochper", init = init)
+vol3 <- spotvol(sample_prices_5min, method = "kernel")
 plot(vol1$spot, type="l")
 lines(vol2$spot, col="red")
+lines(vol3$spot, col="blue")
 }
 \references{
 Andersen, T. G. and T. Bollerslev (1997). Intraday periodicity and volatility

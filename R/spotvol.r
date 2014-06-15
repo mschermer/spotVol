@@ -160,8 +160,10 @@ NULL
 #'    sigma_k = 0.06, phi = 0.194, rho = 0.986, mu = c(1.87,-0.42),
 #'    delta_c = c(0.25, -0.05, -0.2, 0.13, 0.02), delta_s = c(-1.2, 0.11, 0.26, -0.03, 0.08))
 #' vol2 <- spotvol(sample_prices_5min, method = "stochper", init = init)
+#' vol3 <- spotvol(sample_prices_5min, method = "kernel")
 #' plot(vol1$spot, type="l")
 #' lines(vol2$spot, col="red")
+#' lines(vol3$spot, col="blue")
 #' 
 #' @references
 #' Andersen, T. G. and T. Bollerslev (1997). Intraday periodicity and volatility
@@ -210,7 +212,8 @@ spotvol =  function(data, makeReturns = TRUE, method = "detper", on = "minutes",
   options <- list(...)
   out = switch(method, 
            detper = detper(mR, options = options), 
-           stochper = stochper(mR, options = options))  
+           stochper = stochper(mR, options = options),
+           kernel = kernelestim(mR))  
   if("periodic" %in% names(out)) names(out$periodic) <- as.character(intraday)
   
   return(out)
@@ -387,6 +390,39 @@ ssmodel <- function(par_t, days, N = 288, P1 = 5, P2 = 5)
   
   return(list(a0 = a0, P0 = P0, Tt = Tt, Zt = Zt, GGt = GGt, HHt = HHt, dt = dt, ct = ct))
 }
+
+#' Kernel estimation method
+#' 
+#' See Kristensen (2010)
+kernelestim <- function(mR, type = "zk")
+{
+  D = nrow(mR)
+  N = ncol(mR)
+  h = 0.5 #h <- bandwidth()
+  t <- (1:N)/N
+  sigma2hat <- matrix(NA, nrow = D, ncol = N)
+  for(d in 1:D)
+  {
+    for(n in 2:N)
+    {
+      K <- sapply(t[1:(n-1)] - t[n], 'kernelk', h = h, type = type)
+      sigma2hat[d, n] <- K %*% (mR[d, 1:(n-1)]^2)      
+    }
+  }
+  out = list(spot = as.vector(t(sqrt(sigma2hat))))
+  class(out) <- "spotvol"
+  return(out)
+}
+
+kernelk <- function(z, h = 1, type = "zk")
+{
+  x = z/h
+  if (x > 0 || x < -1) return(0)
+  else return((6/h)*(1 + 3*x + 2*x^2)) 
+
+}
+
+
 
 
 ### auxiliary internal functions copied from highfrequency package
