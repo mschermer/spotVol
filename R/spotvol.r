@@ -219,9 +219,9 @@ spotvol =  function(data, makeReturns = TRUE, method = "detper", on = "minutes",
   return(out)
 }
 
-#' Deterministic periodicity model
-#' 
-#' Modified spotVol function from highfrequency package
+# Deterministic periodicity model
+# 
+# Modified spotVol function from highfrequency package
 detper = function(mR, options = list()) 
 {
   # default options, replace if user-specified
@@ -267,9 +267,9 @@ detper = function(mR, options = list())
   }
 }
 
-#' Stochastic periodicity model
-#' 
-#' This function estimates the spot volatility by using the stochastic periodcity model of Beltratti & Morana (2001)
+# Stochastic periodicity model
+# 
+# This function estimates the spot volatility by using the stochastic periodcity model of Beltratti & Morana (2001)
 stochper =  function(mR, options = list()) 
 {
   # default options, replace if user-specified
@@ -331,9 +331,9 @@ stochper =  function(mR, options = list())
   return(out)
 }
 
-#' Calculate log likelihood using Kalman Filter
-#' 
-#' This function returns the average log likehood value of the stochastic periodicity model, given the input parameters.
+# Calculate log likelihood using Kalman Filter
+# 
+# This function returns the average log likehood value of the stochastic periodicity model, given the input parameters.
 loglikBM <- function(par_t, yt, days, N = 288, P1 = 5, P2 = 5)
 {
   ss <- ssmodel(par_t, days, N, P1 = P1, P2 = P2)
@@ -342,10 +342,10 @@ loglikBM <- function(par_t, yt, days, N = 288, P1 = 5, P2 = 5)
   return(-kf$logLik/length(yt))
 }
 
-#' Generate state space model
-#' 
-#' This function creates the state space matrices from the input parameters.
-#' The output is in the format used by the FKF package.
+# Generate state space model
+# 
+# This function creates the state space matrices from the input parameters.
+# The output is in the format used by the FKF package.
 ssmodel <- function(par_t, days, N = 288, P1 = 5, P2 = 5)
 {
   par <- c(exp(par_t["sigma"]), exp(par_t["sigma_mu"]), exp(par_t["sigma_h"]), exp(par_t["sigma_k"]), 
@@ -391,22 +391,30 @@ ssmodel <- function(par_t, days, N = 288, P1 = 5, P2 = 5)
   return(list(a0 = a0, P0 = P0, Tt = Tt, Zt = Zt, GGt = GGt, HHt = HHt, dt = dt, ct = ct))
 }
 
-#' Kernel estimation method
-#' 
-#' See Kristensen (2010)
-kernelestim <- function(mR, type = "zk")
+# Kernel estimation method
+# 
+# See Kristensen (2010)
+kernelestim <- function(mR, type = "gaussian")
 {
   D = nrow(mR)
   N = ncol(mR)
-  h = 0.5 #h <- bandwidth()
   t <- (1:N)/N
   sigma2hat <- matrix(NA, nrow = D, ncol = N)
   for(d in 1:D)
   {
+    h <- 0.5 # should be estimated
     for(n in 2:N)
     {
-      K <- sapply(t[1:(n-1)] - t[n], 'kernelk', h = h, type = type)
-      sigma2hat[d, n] <- K %*% (mR[d, 1:(n-1)]^2)      
+      if (type == "gaussian")
+      {
+        K <- dnorm((t - t[n])/h)/h
+        sigma2hat[d, n] <- K %*% (mR[d, ]^2)  
+      }
+      else
+      {
+        K <- sapply(t[1:(n-1)] - t[n], 'kernelk', h = h, type = type)
+        sigma2hat[d, n] <- K %*% (mR[d, 1:(n-1)]^2) 
+      }
     }
   }
   out = list(spot = as.vector(t(sqrt(sigma2hat))))
@@ -421,8 +429,6 @@ kernelk <- function(z, h = 1, type = "zk")
   else return((6/h)*(1 + 3*x + 2*x^2)) 
 
 }
-
-
 
 
 ### auxiliary internal functions copied from highfrequency package
