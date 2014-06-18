@@ -135,6 +135,7 @@ vol3 <- spotvol(sample_prices_5min, method = "kernel")
 plot(vol1$spot, type="l")
 lines(vol2$spot, col="red")
 lines(vol3$spot, col="blue")
+legend("topright", c("detper", "stochper", "kernel"), col = c("black", "red", "blue"), lty=1, inset=0.02, bg="white")
 }
 \references{
 Andersen, T. G. and T. Bollerslev (1997). Intraday periodicity and volatility

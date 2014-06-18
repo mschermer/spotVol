@@ -164,6 +164,7 @@ NULL
 #' plot(vol1$spot, type="l")
 #' lines(vol2$spot, col="red")
 #' lines(vol3$spot, col="blue")
+#' legend("topright", c("detper", "stochper", "kernel"), col = c("black", "red", "blue"), lty=1, inset=0.02, bg="white")
 #' 
 #' @references
 #' Andersen, T. G. and T. Bollerslev (1997). Intraday periodicity and volatility
@@ -213,7 +214,7 @@ spotvol =  function(data, makeReturns = TRUE, method = "detper", on = "minutes",
   out = switch(method, 
            detper = detper(mR, options = options), 
            stochper = stochper(mR, options = options),
-           kernel = kernelestim(mR))  
+           kernel = kernelestim(mR, options = options))  
   if("periodic" %in% names(out)) names(out$periodic) <- as.character(intraday)
   
   return(out)
@@ -394,27 +395,31 @@ ssmodel <- function(par_t, days, N = 288, P1 = 5, P2 = 5)
 # Kernel estimation method
 # 
 # See Kristensen (2010)
-kernelestim <- function(mR, type = "gaussian")
+kernelestim <- function(mR, options = list())
 {
+  # default options, replace if user-specified
+  op <- list(type = "gaussian", cv = TRUE)
+  op[names(options)] <- options 
+  
   D = nrow(mR)
   N = ncol(mR)
   t <- (1:N)/N
   sigma2hat <- matrix(NA, nrow = D, ncol = N)
   for(d in 1:D)
   {
-    h <- 0.5 # should be estimated
-    for(n in 2:N)
+    h <- estbandwidth(mR[d, ], type = op$type, cv = op$cv)
+    for(n in 1:N)
     {
-      if (type == "gaussian")
+      if (op$type == "beta") 
       {
-        K <- dnorm((t - t[n])/h)/h
-        sigma2hat[d, n] <- K %*% (mR[d, ]^2)  
+        K <- sapply(t, 'kernelk', type = "beta", b = h, y = t[n])
       }
       else
       {
-        K <- sapply(t[1:(n-1)] - t[n], 'kernelk', h = h, type = type)
-        sigma2hat[d, n] <- K %*% (mR[d, 1:(n-1)]^2) 
+        K <- (sapply((t - t[n])/h, 'kernelk', type = op$type))/h 
       }
+      K <- K/sum(K)
+      sigma2hat[d, n] <- K %*% (mR[d, ]^2)
     }
   }
   out = list(spot = as.vector(t(sqrt(sigma2hat))))
@@ -422,12 +427,74 @@ kernelestim <- function(mR, type = "gaussian")
   return(out)
 }
 
-kernelk <- function(z, h = 1, type = "zk")
+# calculate values of certain kernels
+# arguments b and n only needed for type == "beta"
+kernelk <- function(x, type = "gaussian", b = 1, y = 1)
 {
-  x = z/h
-  if (x > 0 || x < -1) return(0)
-  else return((6/h)*(1 + 3*x + 2*x^2)) 
+  if (type == "gaussian") return(dnorm(x))  
+  if (type == "epanechnikov")
+  {
+    if (abs(x) > 1) return(0)
+    else return((3/4)*(1-x)^2)
+  }
+  if (type == "beta") return(dbeta(x, y/b + 1, (1-y)/b + 1))
+}
 
+# estimate optimal bandwidth paramater h
+# by default, this is done through crossvalidation (cv)
+# else the formula for h_opt in Kristensen(2010) is approximated
+estbandwidth <- function(x, type = "gaussian", cv = TRUE)
+{
+  if (cv)
+  {
+    opt <- optimize(ISE, c(0, 10000), x = x, type = type)
+    h = opt$minimum
+  }
+  else
+  {
+    N = length(x)
+    Delta = 1/N
+    quarticity = (Delta/3)*sum(x^4)
+    if (type == "gaussian")
+    {
+      q = 2
+      RK = 1/(2*pi)
+      kq2 = 1
+    }
+    if (type == "epanechnikov")
+    {
+      q = 2
+      RK = 3/5
+      kq2 = 1/5
+    }
+    h = (((quarticity*RK)/(q*kq2))^(1/(2*q+1)))*(N^(-1/(2*q+1)))
+  }
+  
+  return(h)
+}
+
+ISE <- function(h, x, type = "gaussian")
+{
+  N = length(x)
+  t = (1:N)/N
+  sigma2hat <- rep(NA, N)
+  for(n in 1:N)
+  {
+    if (type == "beta") 
+    {
+      K <- sapply(t, 'kernelk', type = "beta", b = h, y = t[n])
+    }
+    else
+    {
+      K <- (sapply((t - t[n])/h, 'kernelk', type = type))/h
+    }
+    K <- K/sum(K)
+    sigma2hat[n] <- K %*% (x^2) 
+  }    
+  tl = 5
+  tu = N-5
+  ISE = sum((x[tl:tu]^2)*N - sigma2hat[tl:tu])
+  return(ISE)
 }
 
 
@@ -583,13 +650,14 @@ diurnal =
         rm(truncX)
         rm(truncvy)
       }
-      plot(seas, main = "Non-parametric and parametric periodicity estimates", 
-           xlab = "intraday period", type = "l", lty = 3)
-      legend("topright", c("Parametric", "Non-parametric"), cex = 1.1,
-             lty = c(1,3), lwd = 1, bty = "n")
-      seas = highfrequency:::diurnalfit(theta = theta, P1 = P1, P2 = P2, intraT = intraT, 
-                                        dummies = dummies)
-      lines(seas, lty = 1)
+# disable plot for now      
+#       plot(seas, main = "Non-parametric and parametric periodicity estimates", 
+#            xlab = "intraday period", type = "l", lty = 3)
+#       legend("topright", c("Parametric", "Non-parametric"), cex = 1.1,
+#              lty = c(1,3), lwd = 1, bty = "n")
+        seas = highfrequency:::diurnalfit(theta = theta, P1 = P1, P2 = P2, intraT = intraT, 
+                                         dummies = dummies)
+#       lines(seas, lty = 1)
       return(list(seas, theta))
     }
     else {
