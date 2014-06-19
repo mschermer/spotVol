@@ -53,8 +53,8 @@ Methods that provide this output: \code{"detper"}.
 
 \code{par}
 
-A named list containing parameter estimates, for methods that estimate a parametric model.
-Methods that provide this output: \code{"stochper"}.
+A named list containing parameter estimates, for methods that estimate one or more parameters.
+Methods that provide this output: \code{"stochper", "kernel"}.
 }
 \description{
 The \code{spotvol} function offers several methods to estimate spot volatility
@@ -111,7 +111,8 @@ Parameters:
 in \code{optim}). Default = \code{list(sigma = 0.03, sigma_mu = 0.005, sigma_h = 0.005, sigma_k = 0.05,
 phi = 0.2, rho = 0.98, mu = c(2, -0.5), delta_c = rep(0, max(1,P1)), delta_s = rep(0, max(1,P2)))}.
 See Beltratti & Morana (2001) for a definition of each parameter. \code{init} can contain any number of
-these parameters. For parameters not specified in \code{init}, the default initial value will be used.
+these parameters. For parameters not specified in \code{init}, the default initial value will be used.\cr
+\code{control} \tab A list of options to be passed down to \code{optim}.
 }
 Outputs (see 'Value' for a full description of each component):
 \itemize{
@@ -122,7 +123,32 @@ This method by Beltratti and Morana (2001) assumes the periodicity factor to be 
 The spot volatility estimation is split into four components: a random walk, an autoregressive
 process, a stochastic cyclical process and a deterministic cyclical process. The model is
 estimated using a quasi-maximum likelihood method based on the Kalman Filter. The package
-\code{FKF} is used to apply the Kalman filter.
+\code{FKF} is used to apply the Kalman filter. In addition to the spot volatility estimates,
+all parameter estimates are returned.
+
+\strong{Nonparametric filtering (\code{"kernel"})}
+
+Parameters:
+\tabular{ll}{
+\code{type} \tab String specifying the type of kernel to be used. Options include
+\code{"gaussian", "epanechnikov", "beta"}. Default = \code{"gaussian"}.\cr
+\code{h} \tab Scalar or vector specifying bandwidth(s) to be used in kernel. If \code{h}
+is a scalar, it will be assumed equal throughout the sample. If it is a vector, it should contain
+bandwidths for each day. If left empty, it will be estimated. Default = \code{NULL}. \cr
+\code{cv} \tab Boolean indicating whether cross-validation should be used to estimate
+the bandwidth \code{h}. \code{cv} is overridden if \code{h} has already been specified
+by the user. Default = \code{TRUE}.\cr
+\code{control} \tab A list of options to be passed down to \code{optim}.
+}
+Outputs (see 'Value' for a full description of each component):
+\itemize{
+\item{\code{spot}}
+\item{\code{par}}
+}
+This method by Kristensen (2010) filters the spot volatility in a nonparametric way by applying
+kernel weights to the standard realized volatility estimator. Different kernels and bandwidths can
+be used to focus on specific characteristics of the volatility process. When using this method, in
+addition to the spot volatility estimates, all used values of the bandwidth \eqn{h} are returned.
 }
 \examples{
 data(sample_prices_5min)
@@ -130,8 +156,9 @@ vol1 <- spotvol(sample_prices_5min)
 init = list(sigma = 0.03, sigma_mu = 0.005, sigma_h = 0.007,
    sigma_k = 0.06, phi = 0.194, rho = 0.986, mu = c(1.87,-0.42),
    delta_c = c(0.25, -0.05, -0.2, 0.13, 0.02), delta_s = c(-1.2, 0.11, 0.26, -0.03, 0.08))
+# next method will take around 110 iterations
 vol2 <- spotvol(sample_prices_5min, method = "stochper", init = init)
-vol3 <- spotvol(sample_prices_5min, method = "kernel")
+vol3 <- spotvol(sample_prices_5min, method = "kernel", h = 0.05)
 plot(vol1$spot, type="l")
 lines(vol2$spot, col="red")
 lines(vol3$spot, col="blue")
@@ -146,6 +173,9 @@ of intraday seasonal components with high frequency data. Economic Notes 30, 205
 
 Boudt K., Croux C. and Laurent S. (2011). Robust estimation of intraweek periodicity
 in volatility and jump detection. Journal of Empirical Finance 18, 353-367.
+
+Kristensen, Dennis (2010). Nonparametric filtering of the realized spot volatility:
+A kernel-based approach. Econometric Theory 26, 60-93.
 
 Taylor, S. J. and X. Xu (1997). The incremental volatility information in one million
 foreign exchange quotations. Journal of Empirical Finance 4, 317-340.

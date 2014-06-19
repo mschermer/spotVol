@@ -31,6 +31,9 @@
 #' Boudt K., Croux C. and Laurent S. (2011). Robust estimation of intraweek periodicity
 #' in volatility and jump detection. Journal of Empirical Finance 18, 353-367.
 #' 
+#' Kristensen, Dennis (2010). Nonparametric filtering of the realized spot volatility: 
+#' A kernel-based approach. Econometric Theory 26, 60-93.
+#' 
 #' Taylor, S. J. and X. Xu (1997). The incremental volatility information in one million
 #' foreign exchange quotations. Journal of Empirical Finance 4, 317-340.
 #' 
@@ -96,7 +99,8 @@ NULL
 #' in \code{optim}). Default = \code{list(sigma = 0.03, sigma_mu = 0.005, sigma_h = 0.005, sigma_k = 0.05, 
 #' phi = 0.2, rho = 0.98, mu = c(2, -0.5), delta_c = rep(0, max(1,P1)), delta_s = rep(0, max(1,P2)))}.
 #' See Beltratti & Morana (2001) for a definition of each parameter. \code{init} can contain any number of
-#' these parameters. For parameters not specified in \code{init}, the default initial value will be used.
+#' these parameters. For parameters not specified in \code{init}, the default initial value will be used.\cr
+#' \code{control} \tab A list of options to be passed down to \code{optim}.
 #' }
 #' Outputs (see 'Value' for a full description of each component):
 #' \itemize{
@@ -107,7 +111,32 @@ NULL
 #' The spot volatility estimation is split into four components: a random walk, an autoregressive
 #' process, a stochastic cyclical process and a deterministic cyclical process. The model is 
 #' estimated using a quasi-maximum likelihood method based on the Kalman Filter. The package
-#' \code{FKF} is used to apply the Kalman filter.
+#' \code{FKF} is used to apply the Kalman filter. In addition to the spot volatility estimates,
+#' all parameter estimates are returned.
+#' 
+#' \strong{Nonparametric filtering (\code{"kernel"})}
+#' 
+#' Parameters:
+#' \tabular{ll}{
+#' \code{type} \tab String specifying the type of kernel to be used. Options include 
+#' \code{"gaussian", "epanechnikov", "beta"}. Default = \code{"gaussian"}.\cr
+#' \code{h} \tab Scalar or vector specifying bandwidth(s) to be used in kernel. If \code{h}
+#' is a scalar, it will be assumed equal throughout the sample. If it is a vector, it should contain
+#' bandwidths for each day. If left empty, it will be estimated. Default = \code{NULL}. \cr
+#' \code{cv} \tab Boolean indicating whether cross-validation should be used to estimate
+#' the bandwidth \code{h}. \code{cv} is overridden if \code{h} has already been specified 
+#' by the user. Default = \code{TRUE}.\cr
+#' \code{control} \tab A list of options to be passed down to \code{optim}.
+#' }
+#' Outputs (see 'Value' for a full description of each component):
+#' \itemize{
+#' \item{\code{spot}}
+#' \item{\code{par}}
+#' }
+#' This method by Kristensen (2010) filters the spot volatility in a nonparametric way by applying
+#' kernel weights to the standard realized volatility estimator. Different kernels and bandwidths can 
+#' be used to focus on specific characteristics of the volatility process. When using this method, in
+#' addition to the spot volatility estimates, all used values of the bandwidth \eqn{h} are returned.
 #' 
 #' @param data \code{xts} object, containing a price or return series. If the data consists 
 #' of returns, set \code{makeReturns} to \code{FALSE}.
@@ -148,8 +177,8 @@ NULL
 #' 
 #' \code{par}
 #' 
-#' A named list containing parameter estimates, for methods that estimate a parametric model. 
-#' Methods that provide this output: \code{"stochper"}.
+#' A named list containing parameter estimates, for methods that estimate one or more parameters. 
+#' Methods that provide this output: \code{"stochper", "kernel"}.
 #' 
 #' 
 #' @export
@@ -159,8 +188,9 @@ NULL
 #' init = list(sigma = 0.03, sigma_mu = 0.005, sigma_h = 0.007,
 #'    sigma_k = 0.06, phi = 0.194, rho = 0.986, mu = c(1.87,-0.42),
 #'    delta_c = c(0.25, -0.05, -0.2, 0.13, 0.02), delta_s = c(-1.2, 0.11, 0.26, -0.03, 0.08))
+#' # next method will take around 110 iterations
 #' vol2 <- spotvol(sample_prices_5min, method = "stochper", init = init)
-#' vol3 <- spotvol(sample_prices_5min, method = "kernel")
+#' vol3 <- spotvol(sample_prices_5min, method = "kernel", h = 0.05)
 #' plot(vol1$spot, type="l")
 #' lines(vol2$spot, col="red")
 #' lines(vol3$spot, col="blue")
@@ -175,6 +205,9 @@ NULL
 #' 
 #' Boudt K., Croux C. and Laurent S. (2011). Robust estimation of intraweek periodicity
 #' in volatility and jump detection. Journal of Empirical Finance 18, 353-367.
+#' 
+#' Kristensen, Dennis (2010). Nonparametric filtering of the realized spot volatility: 
+#' A kernel-based approach. Econometric Theory 26, 60-93.
 #' 
 #' Taylor, S. J. and X. Xu (1997). The incremental volatility information in one million
 #' foreign exchange quotations. Journal of Empirical Finance 4, 317-340.
@@ -274,7 +307,7 @@ detper = function(mR, options = list())
 stochper =  function(mR, options = list()) 
 {
   # default options, replace if user-specified
-  op <- list(init = list(), P1 = 5, P2 = 5)
+  op <- list(init = list(), P1 = 5, P2 = 5, control = list(trace=1, maxit=500))
   op[names(options)] <- options 
   
   N = ncol(mR)
@@ -314,7 +347,7 @@ stochper =  function(mR, options = list())
                sigma_k = log(sp$sigma_k), phi = log(sp$phi/(1-sp$phi)), rho = log(sp$rho/(1-sp$rho)),
                mu = sp$mu, delta_c = sp$delta_c, delta_s = sp$delta_s)   
 
-  opt <- optim(par_t, loglikBM, yt = rvector, N = N, days = days, P1 = op$P1, P2 = op$P2, method="BFGS", control=list(trace=1, maxit=500))
+  opt <- optim(par_t, loglikBM, yt = rvector, N = N, days = days, P1 = op$P1, P2 = op$P2, method="BFGS", control = op$control)
   
   # recreate model to obtain volatility estimates
   ss <- ssmodel(opt$par, days, N, P1 = op$P1, P2 = op$P2)
@@ -398,31 +431,38 @@ ssmodel <- function(par_t, days, N = 288, P1 = 5, P2 = 5)
 kernelestim <- function(mR, options = list())
 {
   # default options, replace if user-specified
-  op <- list(type = "gaussian", cv = TRUE)
+  op <- list(type = "gaussian", h = NULL, cv = TRUE, control = list())
   op[names(options)] <- options 
   
   D = nrow(mR)
   N = ncol(mR)
   t <- (1:N)/N
+  if (is.null(op$h)) h <- numeric(D)
+  else h <- rep(op$h, length.out = D)
+  
   sigma2hat <- matrix(NA, nrow = D, ncol = N)
   for(d in 1:D)
   {
-    h <- estbandwidth(mR[d, ], type = op$type, cv = op$cv)
+    if (is.null(op$h))
+    {
+      cat(paste("Estimating optimal bandwidth for day", d, "of", D, "...\n"))
+      h[d] <- estbandwidth(mR[d, ], type = op$type, cv = op$cv, control = op$control)
+    }
     for(n in 1:N)
     {
       if (op$type == "beta") 
       {
-        K <- sapply(t, 'kernelk', type = "beta", b = h, y = t[n])
+        K <- sapply(t, 'kernelk', type = "beta", b = h[d], y = t[n])
       }
       else
       {
-        K <- (sapply((t - t[n])/h, 'kernelk', type = op$type))/h 
+        K <- (sapply((t - t[n])/h[d], 'kernelk', type = op$type))/h[d] 
       }
       K <- K/sum(K)
       sigma2hat[d, n] <- K %*% (mR[d, ]^2)
     }
   }
-  out = list(spot = as.vector(t(sqrt(sigma2hat))))
+  out = list(spot = as.vector(t(sqrt(sigma2hat))), par = list(h = h))
   class(out) <- "spotvol"
   return(out)
 }
@@ -443,12 +483,12 @@ kernelk <- function(x, type = "gaussian", b = 1, y = 1)
 # estimate optimal bandwidth paramater h
 # by default, this is done through crossvalidation (cv)
 # else the formula for h_opt in Kristensen(2010) is approximated
-estbandwidth <- function(x, type = "gaussian", cv = TRUE)
+estbandwidth <- function(x, type = "gaussian", cv = TRUE, control = list())
 {
   if (cv)
   {
-    opt <- optimize(ISE, c(0, 10000), x = x, type = type)
-    h = opt$minimum
+    opt <- optim(log(0.05), ISE, method = "BFGS", control = control, x = x, type = type)
+    h = exp(opt$par)
   }
   else
   {
@@ -469,12 +509,12 @@ estbandwidth <- function(x, type = "gaussian", cv = TRUE)
     }
     h = (((quarticity*RK)/(q*kq2))^(1/(2*q+1)))*(N^(-1/(2*q+1)))
   }
-  
   return(h)
 }
 
 ISE <- function(h, x, type = "gaussian")
 {
+  h = exp(h)
   N = length(x)
   t = (1:N)/N
   sigma2hat <- rep(NA, N)
@@ -488,12 +528,13 @@ ISE <- function(h, x, type = "gaussian")
     {
       K <- (sapply((t - t[n])/h, 'kernelk', type = type))/h
     }
+    K[n] = 0
     K <- K/sum(K)
     sigma2hat[n] <- K %*% (x^2) 
   }    
   tl = 5
   tu = N-5
-  ISE = sum((x[tl:tu]^2)*N - sigma2hat[tl:tu])
+  ISE = sum(abs((x[tl:tu]^2) - sigma2hat[tl:tu]))
   return(ISE)
 }
 
