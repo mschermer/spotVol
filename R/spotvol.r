@@ -432,7 +432,7 @@ kernelestim <- function(mR, options = list())
 {
   # default options, replace if user-specified
   op <- list(type = "gaussian", h = NULL, cv = TRUE, control = list())
-  op[names(options)] <- options 
+  op[names(options)] <- options
   
   D = nrow(mR)
   N = ncol(mR)
@@ -487,14 +487,14 @@ estbandwidth <- function(x, type = "gaussian", cv = TRUE, control = list())
 {
   if (cv)
   {
-    opt <- optim(log(0.05), ISE, method = "BFGS", control = control, x = x, type = type)
-    h = exp(opt$par)
+    opt <- optimize(ISE, c(0.01, 0.1), x = x, type = type)
+    h = opt$minimum
   }
   else
   {
+    # the following estimation does not yet yield correct results
     N = length(x)
-    Delta = 1/N
-    quarticity = (Delta/3)*sum(x^4)
+    quarticity = (N/3)*sum(x^4)
     if (type == "gaussian")
     {
       q = 2
@@ -514,7 +514,6 @@ estbandwidth <- function(x, type = "gaussian", cv = TRUE, control = list())
 
 ISE <- function(h, x, type = "gaussian")
 {
-  h = exp(h)
   N = length(x)
   t = (1:N)/N
   sigma2hat <- rep(NA, N)
@@ -534,7 +533,7 @@ ISE <- function(h, x, type = "gaussian")
   }    
   tl = 5
   tu = N-5
-  ISE = sum(abs((x[tl:tu]^2) - sigma2hat[tl:tu]))
+  ISE = sum(((x[tl:tu]^2) - sigma2hat[tl:tu])^2)
   return(ISE)
 }
 
