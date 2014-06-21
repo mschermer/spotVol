@@ -123,10 +123,11 @@ NULL
 #' \code{h} \tab Scalar or vector specifying bandwidth(s) to be used in kernel. If \code{h}
 #' is a scalar, it will be assumed equal throughout the sample. If it is a vector, it should contain
 #' bandwidths for each day. If left empty, it will be estimated. Default = \code{NULL}. \cr
-#' \code{cv} \tab Boolean indicating whether cross-validation should be used to estimate
-#' the bandwidth \code{h}. \code{cv} is overridden if \code{h} has already been specified 
-#' by the user. Default = \code{TRUE}.\cr
-#' \code{control} \tab A list of options to be passed down to \code{optim}.
+#' \code{est} \tab String specifiying the bandwidth estimation method. Possible values include
+#' \code{"cv", "plugin"}. Method \code{"cv"} means cross-validation, which chooses the bandwidth
+#' that minimizes the Integrated Square Error. \code{"plugin"} uses a simple plug-in estimator based
+#' on the daily quarticity of the returns. \code{est} is obsolete if \code{h} has already been specified 
+#' by the user. Default = \code{"cv"}.\cr
 #' }
 #' Outputs (see 'Value' for a full description of each component):
 #' \itemize{
