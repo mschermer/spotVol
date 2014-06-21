@@ -184,17 +184,27 @@ NULL
 #' @export
 #' @examples
 #' data(sample_prices_5min)
+#' 
+#' # deterministic versus stochastic periodicity
 #' vol1 <- spotvol(sample_prices_5min)
 #' init = list(sigma = 0.03, sigma_mu = 0.005, sigma_h = 0.007,
 #'    sigma_k = 0.06, phi = 0.194, rho = 0.986, mu = c(1.87,-0.42),
 #'    delta_c = c(0.25, -0.05, -0.2, 0.13, 0.02), delta_s = c(-1.2, 0.11, 0.26, -0.03, 0.08))
 #' # next method will take around 110 iterations
 #' vol2 <- spotvol(sample_prices_5min, method = "stochper", init = init)
-#' vol3 <- spotvol(sample_prices_5min, method = "kernel", h = 0.05)
 #' plot(vol1$spot, type="l")
 #' lines(vol2$spot, col="red")
-#' lines(vol3$spot, col="blue")
-#' legend("topright", c("detper", "stochper", "kernel"), col = c("black", "red", "blue"), lty=1, inset=0.02, bg="white")
+#' legend("topright", c("detper", "stochper"), col = c("black", "red"), lty=1)
+#' 
+#' # various kernel estimates
+#' vol3 <- spotvol(sample_prices_5min, method = "kernel", est = "plugin")
+#' vol4 <- spotvol(sample_prices_5min, method = "kernel", h = 0.05)
+#' vol5 <- spotvol(sample_prices_5min, method = "kernel")
+#' plot(vol3$spot[1:1000], type="l")
+#' lines(vol4$spot[1:1000], col="red")
+#' lines(vol5$spot[1:1000], col="blue")
+#' legend("topright", c("h = plugin estimate", "h = 0.05",
+#'   "h = crossvalidated"), col = c("black", "red", "blue"), lty=1)
 #' 
 #' @references
 #' Andersen, T. G. and T. Bollerslev (1997). Intraday periodicity and volatility
@@ -431,7 +441,7 @@ ssmodel <- function(par_t, days, N = 288, P1 = 5, P2 = 5)
 kernelestim <- function(mR, options = list())
 {
   # default options, replace if user-specified
-  op <- list(type = "gaussian", h = NULL, cv = TRUE, control = list())
+  op <- list(type = "gaussian", h = NULL, est = "cv", control = list())
   op[names(options)] <- options
   
   D = nrow(mR)
@@ -446,7 +456,7 @@ kernelestim <- function(mR, options = list())
     if (is.null(op$h))
     {
       cat(paste("Estimating optimal bandwidth for day", d, "of", D, "...\n"))
-      h[d] <- estbandwidth(mR[d, ], type = op$type, cv = op$cv, control = op$control)
+      h[d] <- estbandwidth(mR[d, ], type = op$type, est = op$est, control = op$control)
     }
     for(n in 1:N)
     {
@@ -483,31 +493,32 @@ kernelk <- function(x, type = "gaussian", b = 1, y = 1)
 # estimate optimal bandwidth paramater h
 # by default, this is done through crossvalidation (cv)
 # else the formula for h_opt in Kristensen(2010) is approximated
-estbandwidth <- function(x, type = "gaussian", cv = TRUE, control = list())
+estbandwidth <- function(x, type = "gaussian", est = "cv", control = list())
 {
-  if (cv)
+  N = length(x)
+  if (est == "plugin")
   {
-    opt <- optimize(ISE, c(0.01, 0.1), x = x, type = type)
-    h = opt$minimum
-  }
-  else
-  {
-    # the following estimation does not yet yield correct results
-    N = length(x)
     quarticity = (N/3)*sum(x^4)
     if (type == "gaussian")
     {
       q = 2
-      RK = 1/(2*pi)
-      kq2 = 1
+      RK = 1/(2*sqrt(pi))
+      kq2 = 1  
     }
-    if (type == "epanechnikov")
+    else if (type == "epanechnikov")
     {
       q = 2
       RK = 3/5
       kq2 = 1/5
     }
+    else stop("plugin estimation not supported for this type of kernel")
     h = (((quarticity*RK)/(q*kq2))^(1/(2*q+1)))*(N^(-1/(2*q+1)))
+  }
+  
+  if (est == "cv")
+  {
+    opt <- optimize(ISE, c(0.001, 0.5), x = x, type = type)
+    h = opt$minimum
   }
   return(h)
 }
