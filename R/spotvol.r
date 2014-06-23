@@ -222,7 +222,7 @@ NULL
 #' 
 #' Taylor, S. J. and X. Xu (1997). The incremental volatility information in one million
 #' foreign exchange quotations. Journal of Empirical Finance 4, 317-340.
-spotvol =  function(data, makeReturns = TRUE, method = "detper", on = "minutes", k = 5,
+spotvol <- function(data, makeReturns = TRUE, method = "detper", on = "minutes", k = 5,
                     marketopen = "09:30:00", marketclose = "16:00:00", ...)  
 {
   Sys.setenv(TZ="GMT") # only for convenience during testing
@@ -267,10 +267,10 @@ spotvol =  function(data, makeReturns = TRUE, method = "detper", on = "minutes",
 # Deterministic periodicity model
 # 
 # Modified spotVol function from highfrequency package
-detper = function(mR, options = list()) 
+detper <- function(mR, options = list()) 
 {
   # default options, replace if user-specified
-  op <- list(dailyvol = "bipower", periodicvol = "TML", dummies = FALSE, P1 = 5, P2 = 5)
+  op <- list(dailyvol = "bipower", periodicvol = "TML", dummies = FALSE, P1 = 5, P2 = 5, pw = FALSE)
   op[names(options)] <- options 
   
   cDays = nrow(mR)
@@ -279,11 +279,24 @@ detper = function(mR, options = list())
     mR = as.numeric(mR)
     estimdailyvol = switch(op$dailyvol, 
                            bipower = rBPCov(mR), 
-                           medrv = medRV(mR), rv = RV(mR))
+                           medrv = medRV(mR), 
+                           rv = RV(mR))
   }else {
-    estimdailyvol = switch(op$dailyvol, 
+    if (op$pw)
+    {
+      cp <- constantPeriods(mR)
+      estimdailyvol = switch(op$dailyvol, 
+                             bipower = sapply(cp, "rBPCov"),
+                             medrv = sapply(cp, "medRV"), 
+                             rv = sapply(cp, "RV"))
+    }
+    else
+    {
+      estimdailyvol = switch(op$dailyvol, 
                            bipower = apply(mR, 1, "rBPCov"),
-                           medrv = apply(mR, 1, "medRV"), rv = apply(mR, 1, "RV"))
+                           medrv = apply(mR, 1, "medRV"),
+                           rv = apply(mR, 1, "RV"))
+    }
   }  
   if (cDays <= 50) {
     print("Periodicity estimation requires at least 50 observations. Periodic component set to unity")
@@ -312,10 +325,47 @@ detper = function(mR, options = list())
   }
 }
 
+# Piecewise constant volatility 
+#
+# See Fried (2012)
+constantPeriods <- function(mR)
+{
+  periods <- list()
+  reference = mR[1,]
+  D = nrow(mR)
+  logR = log((mR - mean(mR))^2)
+  g = density(logR[2:D,1] - logR[1:(D-1),1]) 
+  g0 = 
+  for (i in 2:D)
+  {
+    testperiod = mR[i,]
+    if (MDtest(testperiod, reference, length(mR), g0))
+    {
+      reference <- c(reference, testperiod)
+    }
+    else
+    {
+      periods <- c(periods, list(reference))
+      reference <- testperiod
+    }
+  }
+  periods <- c(periods, list(reference))
+  return(periods)
+}
+
+# Median difference test
+#
+# See Fried (2012)
+MDtest <- function(x, y, N, g0)
+{
+  
+  
+}
+
 # Stochastic periodicity model
 # 
 # This function estimates the spot volatility by using the stochastic periodcity model of Beltratti & Morana (2001)
-stochper =  function(mR, options = list()) 
+stochper <- function(mR, options = list()) 
 {
   # default options, replace if user-specified
   op <- list(init = list(), P1 = 5, P2 = 5, control = list(trace=1, maxit=500))
@@ -479,7 +529,7 @@ kernelestim <- function(mR, options = list())
 }
 
 # calculate values of certain kernels
-# arguments b and n only needed for type == "beta"
+# arguments b and y only needed for type == "beta"
 kernelk <- function(x, type = "gaussian", b = 1, y = 1)
 {
   if (type == "gaussian") return(dnorm(x))  
@@ -518,12 +568,20 @@ estbandwidth <- function(x, type = "gaussian", est = "cv", control = list())
   
   if (est == "cv")
   {
+#     hmin = 0.001
+#     hmax = 1
+#     k = 500
+#     htry = seq(hmin, hmax, length.out = k)
+#     val = sapply(htry, 'ISE', x = x, type = type)
+#     h = htry[val == min(val)]
+#     plot(x=htry, y=val)
     opt <- optimize(ISE, c(0.001, 0.5), x = x, type = type)
     h = opt$minimum
   }
   return(h)
 }
 
+# calculate Integrated Square Error, given bandwidth h
 ISE <- function(h, x, type = "gaussian")
 {
   N = length(x)
