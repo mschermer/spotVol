@@ -492,7 +492,7 @@ ssmodel <- function(par_t, days, N = 288, P1 = 5, P2 = 5)
 kernelestim <- function(mR, options = list())
 {
   # default options, replace if user-specified
-  op <- list(type = "gaussian", h = NULL, est = "cv", control = list())
+  op <- list(type = "gaussian", h = NULL, est = "cv", lower = NULL, upper = NULL)
   op[names(options)] <- options
   
   D = nrow(mR)
@@ -507,17 +507,17 @@ kernelestim <- function(mR, options = list())
     if (is.null(op$h))
     {
       cat(paste("Estimating optimal bandwidth for day", d, "of", D, "...\n"))
-      h[d] <- estbandwidth(mR[d, ], type = op$type, est = op$est, control = op$control)
+      h[d] <- estbandwidth(mR[d, ], type = op$type, est = op$est, lower = op$lower, upper = op$upper)
     }
     for(n in 1:N)
     {
       if (op$type == "beta") 
       {
-        K <- sapply(t, 'kernelk', type = "beta", b = h[d], y = t[n])
+        K <- kernelk(t, type = op$type, b = h[d], y = t[n])
       }
       else
       {
-        K <- (sapply((t - t[n])/h[d], 'kernelk', type = op$type))/h[d] 
+        K <- kernelk((t-t[n])/h[d], type = op$type)/h[d]
       }
       K <- K/sum(K)
       sigma2hat[d, n] <- K %*% (mR[d, ]^2)
@@ -535,8 +535,9 @@ kernelk <- function(x, type = "gaussian", b = 1, y = 1)
   if (type == "gaussian") return(dnorm(x))  
   if (type == "epanechnikov")
   {
-    if (abs(x) > 1) return(0)
-    else return((3/4)*(1-x)^2)
+    z = (3/4)*(1-x)^2
+    z[x > 1] = 0
+    return(z)
   }
   if (type == "beta") return(dbeta(x, y/b + 1, (1-y)/b + 1))
 }
@@ -544,9 +545,11 @@ kernelk <- function(x, type = "gaussian", b = 1, y = 1)
 # estimate optimal bandwidth paramater h
 # by default, this is done through crossvalidation (cv)
 # else the formula for h_opt in Kristensen(2010) is approximated
-estbandwidth <- function(x, type = "gaussian", est = "cv", control = list())
+estbandwidth <- function(x, type = "gaussian", est = "cv", lower = NULL, upper = NULL)
 {
   N = length(x)
+  if (is.null(lower)) lower = 0.1*n^(-0.2)
+  if (is.null(upper)) upper = n^(-0.2)
   if (est == "plugin")
   {
     quarticity = (N/3)*sum(x^4)
@@ -568,14 +571,7 @@ estbandwidth <- function(x, type = "gaussian", est = "cv", control = list())
   
   if (est == "cv")
   {
-#     hmin = 0.001
-#     hmax = 1
-#     k = 500
-#     htry = seq(hmin, hmax, length.out = k)
-#     val = sapply(htry, 'ISE', x = x, type = type)
-#     h = htry[val == min(val)]
-#     plot(x=htry, y=val)
-    opt <- optimize(ISE, c(0.001, 0.5), x = x, type = type)
+    opt <- optimize(ISE, c(lower, upper), x = x, type = type)
     h = opt$minimum
   }
   return(h)
@@ -591,11 +587,11 @@ ISE <- function(h, x, type = "gaussian")
   {
     if (type == "beta") 
     {
-      K <- sapply(t, 'kernelk', type = "beta", b = h, y = t[n])
+      K <- kernelk(t, type = type, b = h, y = t[n])
     }
     else
     {
-      K <- (sapply((t - t[n])/h, 'kernelk', type = type))/h
+      K <- kernelk((t-t[n])/h, type = type)/h
     }
     K[n] = 0
     K <- K/sum(K)
