@@ -140,6 +140,10 @@ bandwidths for each day. If left empty, it will be estimated. Default = \code{NU
 that minimizes the Integrated Square Error. \code{"plugin"} uses a simple plug-in estimator based
 on the daily quarticity of the returns. \code{est} is obsolete if \code{h} has already been specified
 by the user. Default = \code{"cv"}.\cr
+\code{lower} \tab Lower bound to be used in bandwidth optimization routine, when using
+cross-validation method. Default is \eqn{0.1n^{-0.2}}. \cr
+\code{upper} \tab Upper bound to be used in bandwidth optimization routine, when using
+cross-validation method. Default is \eqn{n^{-0.2}}. \cr
 }
 Outputs (see 'Value' for a full description of each component):
 \itemize{
@@ -148,8 +152,22 @@ Outputs (see 'Value' for a full description of each component):
 }
 This method by Kristensen (2010) filters the spot volatility in a nonparametric way by applying
 kernel weights to the standard realized volatility estimator. Different kernels and bandwidths can
-be used to focus on specific characteristics of the volatility process. When using this method, in
-addition to the spot volatility estimates, all used values of the bandwidth \eqn{h} are returned.
+be used to focus on specific characteristics of the volatility process.
+
+Estimation results heavily depend on the bandwidth parameter \eqn{h}, so it is important that this
+parameter is well chosen. However, it is difficult to come up with a method that determines the optimal
+bandwidth for any kind of data or kernel that can be used. Although some estimation methods are provided,
+it is advised that you specify \eqn{h} yourself, or make sure that the estimation results are appropiate.
+
+One way to estimate \eqn{h}, is by using cross-validation. For each day in the sample, \eqn{h} is chosen
+as to minimize the Integrated Square Error, which is a function of \eqn{h}. However, this function often
+has multiple local minima, or no minima at all (\eqn{h -> \Inf}). To ensure a reasonable optimum is reached,
+strict boundaries have to be imposed on #' \eqn{h}. These can be specified by \code{lower} and \code{upper},
+which by default are \eqn{0.1n^{-0.2}} and \eqn{n^{-0.2}} respectively, where \eqn{n} is the number of
+observations in a day.
+
+When using the method \code{"kernel"}, in addition to the spot volatility estimates, all used values
+of the bandwidth \eqn{h} are returned.
 }
 \examples{
 data(sample_prices_5min)
