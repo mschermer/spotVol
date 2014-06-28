@@ -247,16 +247,17 @@ spotvol <- function(data, makeReturns = TRUE, method = "detper", on = "minutes",
   dates = unique(format(time(data), "%Y-%m-%d"))
   cDays = length(dates)
   rdata = mR = c()
-  if(on=="minutes"){
-    intraday = seq(from=times(marketopen), to=times(marketclose), by=times(paste("00:0",k,":00",sep=""))) 
-  }
-  if(as.character(tail(intraday,1))!=marketclose) intraday=c(intraday,marketclose)
+  if(on == "seconds" || on == "secs") interval = k 
+  if(on == "minutes" || on == "mins") interval = k*60  
+  if(on == "hours") interval = k*3600 
+  intraday = seq(from = times(marketopen), to = times(marketclose), by = times(interval/(24*3600))) 
+  if(as.character(tail(intraday,1)) != marketclose) intraday = c(intraday, marketclose)
   if(makeReturns) intraday = intraday[2:length(intraday)]
   for (d in 1:cDays) {
     datad = data[as.character(dates[d])]
     datad = aggregatePrice(datad, on = on, k = k , marketopen = marketopen, marketclose = marketclose)
-    z = xts( rep(1,length(intraday)) , order.by = timeDate( paste(dates[d],as.character(intraday),sep="") , format = "%Y-%m-%d %H:%M:%S"))
-    datad = merge.xts( z , datad )$datad
+    z = xts(rep(1, length(intraday)), order.by = timeDate(paste(dates[d], as.character(intraday), sep=""), format = "%Y-%m-%d %H:%M:%S"))
+    datad = merge.xts(z, datad)$datad
     datad = na.locf(datad)
     if (makeReturns)
     {
@@ -272,11 +273,12 @@ spotvol <- function(data, makeReturns = TRUE, method = "detper", on = "minutes",
     } 
   }
   mR[is.na(mR)]=0
+
   options <- list(...)
   out = switch(method, 
            detper = detper(mR, options = options), 
            stochper = stochper(mR, options = options),
-           kernel = kernelestim(mR, options = options))  
+           kernel = kernelestim(mR, interval, options = options))  
   if("periodic" %in% names(out)) names(out$periodic) <- as.character(intraday)
   
   return(out)
@@ -288,39 +290,32 @@ spotvol <- function(data, makeReturns = TRUE, method = "detper", on = "minutes",
 detper <- function(mR, options = list()) 
 {
   # default options, replace if user-specified
-  op <- list(dailyvol = "bipower", periodicvol = "TML", dummies = FALSE, P1 = 5, P2 = 5, pw = FALSE)
+  op <- list(dailyvol = "bipower", periodicvol = "TML", dummies = FALSE, P1 = 5, P2 = 5)
   op[names(options)] <- options 
   
   cDays = nrow(mR)
   M = ncol(mR)
-  if (cDays == 1) { 
+  if (cDays == 1) 
+  { 
     mR = as.numeric(mR)
     estimdailyvol = switch(op$dailyvol, 
                            bipower = rBPCov(mR), 
                            medrv = medRV(mR), 
                            rv = RV(mR))
-  }else {
-    if (op$pw)
-    {
-      cp <- constantPeriods(mR)
-      estimdailyvol = switch(op$dailyvol, 
-                             bipower = sapply(cp, "rBPCov"),
-                             medrv = sapply(cp, "medRV"), 
-                             rv = sapply(cp, "RV"))
-    }
-    else
-    {
-      estimdailyvol = switch(op$dailyvol, 
+  } 
+  else 
+  {
+    estimdailyvol = switch(op$dailyvol, 
                            bipower = apply(mR, 1, "rBPCov"),
                            medrv = apply(mR, 1, "medRV"),
                            rv = apply(mR, 1, "RV"))
-    }
   }  
   if (cDays <= 50) {
     print("Periodicity estimation requires at least 50 observations. Periodic component set to unity")
     estimperiodicvol = rep(1, M)
   }
-  else {
+  else 
+  {
     mstdR = mR/sqrt(estimdailyvol * (1/M))
     selection = c(1:M)[ (nrow(mR)-apply(mR,2,'countzeroes')) >=20] 
     # preferably no na is between
@@ -341,43 +336,6 @@ detper <- function(mR, options = list())
     class(out) <- "spotvol"
     return(out)
   }
-}
-
-# Piecewise constant volatility 
-#
-# See Fried (2012)
-constantPeriods <- function(mR)
-{
-  periods <- list()
-  reference = mR[1,]
-  D = nrow(mR)
-  logR = log((mR - mean(mR))^2)
-  g = density(logR[2:D,1] - logR[1:(D-1),1]) 
-  g0 = 
-  for (i in 2:D)
-  {
-    testperiod = mR[i,]
-    if (MDtest(testperiod, reference, length(mR), g0))
-    {
-      reference <- c(reference, testperiod)
-    }
-    else
-    {
-      periods <- c(periods, list(reference))
-      reference <- testperiod
-    }
-  }
-  periods <- c(periods, list(reference))
-  return(periods)
-}
-
-# Median difference test
-#
-# See Fried (2012)
-MDtest <- function(x, y, N, g0)
-{
-  
-  
 }
 
 # Stochastic periodicity model
@@ -507,7 +465,7 @@ ssmodel <- function(par_t, days, N = 288, P1 = 5, P2 = 5)
 # Kernel estimation method
 # 
 # See Kristensen (2010)
-kernelestim <- function(mR, options = list())
+kernelestim <- function(mR, interval = 300, options = list())
 {
   # default options, replace if user-specified
   op <- list(type = "gaussian", h = NULL, est = "cv", lower = NULL, upper = NULL)
@@ -515,8 +473,8 @@ kernelestim <- function(mR, options = list())
   
   D = nrow(mR)
   N = ncol(mR)
-  if (N < 100 & est == "cv") warning("Cross-validation may not return optimal results for small samples.")
-  t <- (1:N)/N
+  if (N < 100 & op$est == "cv") warning("Cross-validation may not return optimal results for small samples.")
+  t <- (1:N)*interval
   if (is.null(op$h)) h <- numeric(D)
   else h <- rep(op$h, length.out = D)
   
@@ -526,7 +484,7 @@ kernelestim <- function(mR, options = list())
     if (is.null(op$h))
     {
       cat(paste("Estimating optimal bandwidth for day", d, "of", D, "...\n"))
-      h[d] <- estbandwidth(mR[d, ], type = op$type, est = op$est, lower = op$lower, upper = op$upper)
+      h[d] <- estbandwidth(mR[d, ], interval = interval, type = op$type, est = op$est, lower = op$lower, upper = op$upper)
     }
     for(n in 1:N)
     {
@@ -564,11 +522,11 @@ kernelk <- function(x, type = "gaussian", b = 1, y = 1)
 # estimate optimal bandwidth paramater h
 # by default, this is done through crossvalidation (cv)
 # else the formula for h_opt in Kristensen(2010) is approximated
-estbandwidth <- function(x, type = "gaussian", est = "cv", lower = NULL, upper = NULL)
+estbandwidth <- function(x, interval = 300, type = "gaussian", est = "cv", lower = NULL, upper = NULL)
 {
   N = length(x)
-  if (is.null(lower)) lower = 0.1*n^(-0.2)
-  if (is.null(upper)) upper = n^(-0.2)
+  if (is.null(lower)) lower = 0.1*N^(-0.2)
+  if (is.null(upper)) upper = N^(-0.2)
   if (est == "plugin")
   {
     quarticity = (N/3)*sum(x^4)
@@ -600,7 +558,7 @@ estbandwidth <- function(x, type = "gaussian", est = "cv", lower = NULL, upper =
 ISE <- function(h, x, type = "gaussian")
 {
   N = length(x)
-  t = (1:N)/N
+  t <- (1:N)*interval
   sigma2hat <- rep(NA, N)
   for(n in 1:N)
   {
@@ -620,6 +578,43 @@ ISE <- function(h, x, type = "gaussian")
   tu = N-5
   ISE = sum(((x[tl:tu]^2) - sigma2hat[tl:tu])^2)
   return(ISE)
+}
+
+# Piecewise constant volatility 
+#
+# See Fried (2012)
+constantPeriods <- function(mR)
+{
+  periods <- list()
+  reference = mR[1,]
+  D = nrow(mR)
+  logR = log((mR - mean(mR))^2)
+  g = density(logR[2:D,1] - logR[1:(D-1),1]) 
+  g0 = 
+    for (i in 2:D)
+    {
+      testperiod = mR[i,]
+      if (MDtest(testperiod, reference, length(mR), g0))
+      {
+        reference <- c(reference, testperiod)
+      }
+      else
+      {
+        periods <- c(periods, list(reference))
+        reference <- testperiod
+      }
+    }
+  periods <- c(periods, list(reference))
+  return(periods)
+}
+
+# Median difference test
+#
+# See Fried (2012)
+MDtest <- function(x, y, N, g0)
+{
+  
+  
 }
 
 
