@@ -247,10 +247,10 @@ spotvol <- function(data, makeReturns = TRUE, method = "detper", on = "minutes",
   dates = unique(format(time(data), "%Y-%m-%d"))
   cDays = length(dates)
   rdata = mR = c()
-  if(on == "seconds" || on == "secs") interval = k 
-  if(on == "minutes" || on == "mins") interval = k*60  
-  if(on == "hours") interval = k*3600 
-  intraday = seq(from = times(marketopen), to = times(marketclose), by = times(interval/(24*3600))) 
+  if(on == "seconds" || on == "secs") delta = k 
+  if(on == "minutes" || on == "mins") delta = k*60  
+  if(on == "hours") delta = k*3600 
+  intraday = seq(from = times(marketopen), to = times(marketclose), by = times(delta/(24*3600))) 
   if(as.character(tail(intraday,1)) != marketclose) intraday = c(intraday, marketclose)
   if(makeReturns) intraday = intraday[2:length(intraday)]
   for (d in 1:cDays) {
@@ -278,7 +278,7 @@ spotvol <- function(data, makeReturns = TRUE, method = "detper", on = "minutes",
   out = switch(method, 
            detper = detper(mR, options = options), 
            stochper = stochper(mR, options = options),
-           kernel = kernelestim(mR, interval, options = options))  
+           kernel = kernelestim(mR, delta, options = options))  
   if("periodic" %in% names(out)) names(out$periodic) <- as.character(intraday)
   
   return(out)
@@ -465,7 +465,7 @@ ssmodel <- function(par_t, days, N = 288, P1 = 5, P2 = 5)
 # Kernel estimation method
 # 
 # See Kristensen (2010)
-kernelestim <- function(mR, interval = 300, options = list())
+kernelestim <- function(mR, delta = 300, options = list())
 {
   # default options, replace if user-specified
   op <- list(type = "gaussian", h = NULL, est = "cv", lower = NULL, upper = NULL)
@@ -474,7 +474,14 @@ kernelestim <- function(mR, interval = 300, options = list())
   D = nrow(mR)
   N = ncol(mR)
   if (N < 100 & op$est == "cv") warning("Cross-validation may not return optimal results for small samples.")
-  t <- (1:N)*interval
+  if (op$type == "beta" & op$est == "plugin" ) 
+  {
+    warning("No plugin estimator available for Beta kernel bandwidth.
+                Cross-validation will be used instead.")
+    op$est = "cv" 
+  }
+  t <- (1:N)*delta
+  S = N*delta
   if (is.null(op$h)) h <- numeric(D)
   else h <- rep(op$h, length.out = D)
   
@@ -484,13 +491,13 @@ kernelestim <- function(mR, interval = 300, options = list())
     if (is.null(op$h))
     {
       cat(paste("Estimating optimal bandwidth for day", d, "of", D, "...\n"))
-      h[d] <- estbandwidth(mR[d, ], interval = interval, type = op$type, est = op$est, lower = op$lower, upper = op$upper)
+      h[d] <- estbandwidth(mR[d, ], delta = delta, type = op$type, est = op$est, lower = op$lower, upper = op$upper)
     }
     for(n in 1:N)
     {
       if (op$type == "beta") 
       {
-        K <- kernelk(t, type = op$type, b = h[d], y = t[n])
+        K <- kernelk(t/S, type = op$type, b = h[d], y = t[n]/S)
       }
       else
       {
@@ -510,61 +517,53 @@ kernelestim <- function(mR, interval = 300, options = list())
 kernelk <- function(x, type = "gaussian", b = 1, y = 1)
 {
   if (type == "gaussian") return(dnorm(x))  
-  if (type == "epanechnikov")
-  {
-    z = (3/4)*(1-x)^2
-    z[x > 1] = 0
-    return(z)
-  }
   if (type == "beta") return(dbeta(x, y/b + 1, (1-y)/b + 1))
 }
 
 # estimate optimal bandwidth paramater h
 # by default, this is done through crossvalidation (cv)
 # else the formula for h_opt in Kristensen(2010) is approximated
-estbandwidth <- function(x, interval = 300, type = "gaussian", est = "cv", lower = NULL, upper = NULL)
+estbandwidth <- function(x, delta = 300, type = "gaussian", est = "cv", lower = NULL, upper = NULL)
 {
   N = length(x)
-  if (is.null(lower)) lower = 0.1*N^(-0.2)
-  if (is.null(upper)) upper = N^(-0.2)
+  S = N*delta
+  default = bw.nrd0((1:N)*delta)
+
   if (est == "plugin")
-  {
+  {  
     quarticity = (N/3)*sum(x^4)
-    if (type == "gaussian")
-    {
-      q = 2
-      RK = 1/(2*sqrt(pi))
-      kq2 = 1  
-    }
-    else if (type == "epanechnikov")
-    {
-      q = 2
-      RK = 3/5
-      kq2 = 1/5
-    }
-    else stop("plugin estimation not supported for this type of kernel")
-    h = (((quarticity*RK)/(q*kq2))^(1/(2*q+1)))*(N^(-1/(2*q+1)))
+    h = default*quarticity^0.2 # needs scaling
   }
-  
   if (est == "cv")
   {
-    opt <- optimize(ISE, c(lower, upper), x = x, type = type)
+    if (type == "gaussian")
+    {
+      if (is.null(lower)) lower = default/5
+      if (is.null(upper)) upper = default*5
+    }
+    if (type == "beta")
+    {
+      if (is.null(lower)) lower = 0.0001
+      if (is.null(upper)) upper = 1
+    }
+    opt <- optimize(ISE, c(lower, upper), x = x, type = type, delta = delta)
     h = opt$minimum
   }
   return(h)
 }
 
 # calculate Integrated Square Error, given bandwidth h
-ISE <- function(h, x, type = "gaussian")
+ISE <- function(h, x, delta = 300, type = "gaussian")
 {
   N = length(x)
-  t <- (1:N)*interval
+  t <- (1:N)*delta
+  S = N*delta
   sigma2hat <- rep(NA, N)
   for(n in 1:N)
   {
     if (type == "beta") 
     {
-      K <- kernelk(t, type = type, b = h, y = t[n])
+      K <- kernelk(t/S, type = type, b = h, y = t[n]/S)
     }
     else
     {
