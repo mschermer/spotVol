@@ -3,15 +3,16 @@
 \alias{spotvol}
 \title{spotvol}
 \usage{
-spotvol(data, makeReturns = TRUE, method = "detper", on = "minutes",
-  k = 5, marketopen = "09:30:00", marketclose = "16:00:00", ...)
+spotvol(data, method = "detper", on = "minutes", k = 5,
+  marketopen = "09:30:00", marketclose = "16:00:00", ...)
 }
 \arguments{
-\item{data}{\code{xts} object, containing a price or return series. If the data consists
-of returns, set \code{makeReturns} to \code{FALSE}.}
-
-\item{makeReturns}{boolean, if \code{TRUE} the function will calculate returns from the price
-series \code{data}. If \code{data} already consists of returns, set to \code{FALSE}.}
+\item{data}{Either an \code{xts} object, containing price data, or a \code{matrix} containing returns.
+For price data, irregularly spaced observations are allowed. They will be aggregated to the level
+specified by parameters \code{on} and \code{k}. For return data, the observations are assumed to be
+equispaced, with the time between them specified by \code{on} and \code{k}. Return data should be
+in matrix form, where each row corresponds to a day, and each column to an intraday period. The output
+will be in the same form as the input (\code{xts} or \code{matrix}/\code{numeric}).}
 
 \item{method}{specifies which method will be used to estimate the spot volatility. Options
 include \code{"detper"} and \code{"stochper"}. See Details.}
@@ -35,21 +36,22 @@ depending on the method used:
 
 \code{spot}
 
-An \code{xts} object containing spot volatility estimates \eqn{\sigma_{t,i}}, reported for each interval
-\eqn{i} between \code{marketopen} and \code{marketclose} for every day \eqn{t} in \code{data}. The length
-of the intervals is specifiedby \code{k} and \code{on}. Methods that provide this output: All.
+An \code{xts} or \code{matrix} object (depending on the input) containing spot volatility estimates \eqn{\sigma_{t,i}},
+reported for each interval \eqn{i} between \code{marketopen} and \code{marketclose} for every day \eqn{t} in \code{data}.
+The length of the intervals is specifiedby \code{k} and \code{on}. Methods that provide this output: All.
 
 \code{daily}
 
-An \code{xts} object containing estimates of the daily volatility levels for each day \eqn{t} in \code{data},
-if the used method decomposed spot volatility into a daily and an intraday component. Methods that provide this
-output: \code{"detper"}.
+An \code{xts} or \code{numeric} object (depending on the input) containing estimates of the daily volatility levels
+for each day \eqn{t} in \code{data}, if the used method decomposed spot volatility into a daily and an intraday component.
+Methods that provide this output: \code{"detper"}.
 
 \code{periodic}
 
-Estimates of the intraday periodicity factor for each day interval \eqn{i} between \code{marketopen}
-and \code{marketclose}, if the spot volatility was decomposed into a daily and an intraday component.
-Methods that provide this output: \code{"detper"}.
+An \code{xts} or \code{numeric} object (depending on the input) containing estimates of the intraday periodicity factor
+for each day interval \eqn{i} between \code{marketopen} and \code{marketclose}, if the spot volatility was decomposed
+into a daily and an intraday component. If the output is in \code{xts} format, this periodicity factor will be dated to
+the first day of the input data, but it is identical for each day in the sample. Methods that provide this output: \code{"detper"}.
 
 \code{par}
 
@@ -136,10 +138,10 @@ Parameters:
 is a scalar, it will be assumed equal throughout the sample. If it is a vector, it should contain
 bandwidths for each day. If left empty, it will be estimated. Default = \code{NULL}. \cr
 \code{est} \tab String specifiying the bandwidth estimation method. Possible values include
-\code{"cv", "plugin"}. Method \code{"cv"} means cross-validation, which chooses the bandwidth
-that minimizes the Integrated Square Error. \code{"plugin"} uses a simple plug-in estimator based
-on the daily quarticity of the returns. \code{est} is obsolete if \code{h} has already been specified
-by the user. Default = \code{"cv"}.\cr
+\code{"cv", "quarticity"}. Method \code{"cv"} equals cross-validation, which chooses the bandwidth
+that minimizes the Integrated Square Error. \code{"quarticity"} multiplies the simple plug-in estimator
+by a factor based on the daily quarticity of the returns. \code{est} is obsolete if \code{h} has already
+been specified by the user. Default = \code{"cv"}.\cr
 \code{lower} \tab Lower bound to be used in bandwidth optimization routine, when using
 cross-validation method. Default is \eqn{0.1n^{-0.2}}. \cr
 \code{upper} \tab Upper bound to be used in bandwidth optimization routine, when using
@@ -179,18 +181,19 @@ init = list(sigma = 0.03, sigma_mu = 0.005, sigma_h = 0.007,
    delta_c = c(0.25, -0.05, -0.2, 0.13, 0.02), delta_s = c(-1.2, 0.11, 0.26, -0.03, 0.08))
 # next method will take around 110 iterations
 vol2 <- spotvol(sample_prices_5min, method = "stochper", init = init)
-plot(vol1$spot, type="l")
-lines(vol2$spot, col="red")
+plot(as.numeric(vol1$spot[1:780]), type="l")
+lines(as.numeric(vol2$spot[1:780]), col="red")
 legend("topright", c("detper", "stochper"), col = c("black", "red"), lty=1)
 
 # various kernel estimates
-vol3 <- spotvol(sample_prices_5min, method = "kernel", est = "plugin")
-vol4 <- spotvol(sample_prices_5min, method = "kernel", h = 0.05)
-vol5 <- spotvol(sample_prices_5min, method = "kernel")
-plot(vol3$spot[1:1000], type="l")
-lines(vol4$spot[1:1000], col="red")
-lines(vol5$spot[1:1000], col="blue")
-legend("topright", c("h = plugin estimate", "h = 0.05",
+h1 = bw.nrd0((1:nrow(sample_returns_5min))*(5*60))
+vol3 <- spotvol(sample_returns_5min, method = "kernel", h = h1)
+vol4 <- spotvol(sample_returns_5min, method = "kernel", est = "quarticity")
+vol5 <- spotvol(sample_returns_5min, method = "kernel", est = "cv")
+plot(vol3$spot[1:2880], type="l")
+lines(vol4$spot[1:2880], col="red")
+lines(vol5$spot[1:2880], col="blue")
+legend("topright", c("h = simple estimate", "h = quarticity corrected",
   "h = crossvalidated"), col = c("black", "red", "blue"), lty=1)
 }
 \references{

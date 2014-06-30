@@ -124,10 +124,10 @@ NULL
 #' is a scalar, it will be assumed equal throughout the sample. If it is a vector, it should contain
 #' bandwidths for each day. If left empty, it will be estimated. Default = \code{NULL}. \cr
 #' \code{est} \tab String specifiying the bandwidth estimation method. Possible values include
-#' \code{"cv", "plugin"}. Method \code{"cv"} means cross-validation, which chooses the bandwidth
-#' that minimizes the Integrated Square Error. \code{"plugin"} uses a simple plug-in estimator based
-#' on the daily quarticity of the returns. \code{est} is obsolete if \code{h} has already been specified 
-#' by the user. Default = \code{"cv"}.\cr
+#' \code{"cv", "quarticity"}. Method \code{"cv"} equals cross-validation, which chooses the bandwidth
+#' that minimizes the Integrated Square Error. \code{"quarticity"} multiplies the simple plug-in estimator
+#' by a factor based on the daily quarticity of the returns. \code{est} is obsolete if \code{h} has already
+#' been specified by the user. Default = \code{"cv"}.\cr
 #' \code{lower} \tab Lower bound to be used in bandwidth optimization routine, when using 
 #' cross-validation method. Default is \eqn{0.1n^{-0.2}}. \cr
 #' \code{upper} \tab Upper bound to be used in bandwidth optimization routine, when using 
@@ -157,12 +157,14 @@ NULL
 #' When using the method \code{"kernel"}, in addition to the spot volatility estimates, all used values
 #' of the bandwidth \eqn{h} are returned.
 #' 
-#' @param data \code{xts} object, containing a price or return series. If the data consists 
-#' of returns, set \code{makeReturns} to \code{FALSE}.
-#' @param makeReturns boolean, if \code{TRUE} the function will calculate returns from the price
-#' series \code{data}. If \code{data} already consists of returns, set to \code{FALSE}.
+#' @param data Either an \code{xts} object, containing price data, or a \code{matrix} containing returns.  
+#' For price data, irregularly spaced observations are allowed. They will be aggregated to the level 
+#' specified by parameters \code{on} and \code{k}. For return data, the observations are assumed to be
+#' equispaced, with the time between them specified by \code{on} and \code{k}. Return data should be
+#' in matrix form, where each row corresponds to a day, and each column to an intraday period. The output
+#' will be in the same form as the input (\code{xts} or \code{matrix}/\code{numeric}).
 #' @param method specifies which method will be used to estimate the spot volatility. Options
-#' include \code{"detper"} and \code{"stochper"}. See Details.
+#' include \code{"detper"} and \code{"stochper"}. See 'Details'.
 #' @param on string indicating the time scale in which \code{k} is expressed.
 #'  Possible values are: \code{"secs", "seconds", "mins", "minutes", "hours"}.
 #' @param k positive integer, indicating the number of periods to aggregate over.
@@ -178,21 +180,22 @@ NULL
 #' 
 #' \code{spot}
 #' 
-#' An \code{xts} object containing spot volatility estimates \eqn{\sigma_{t,i}}, reported for each interval
-#' \eqn{i} between \code{marketopen} and \code{marketclose} for every day \eqn{t} in \code{data}. The length
-#' of the intervals is specifiedby \code{k} and \code{on}. Methods that provide this output: All.
+#' An \code{xts} or \code{matrix} object (depending on the input) containing spot volatility estimates \eqn{\sigma_{t,i}},
+#' reported for each interval \eqn{i} between \code{marketopen} and \code{marketclose} for every day \eqn{t} in \code{data}.
+#' The length of the intervals is specifiedby \code{k} and \code{on}. Methods that provide this output: All.
 #' 
 #' \code{daily}
 #' 
-#' An \code{xts} object containing estimates of the daily volatility levels for each day \eqn{t} in \code{data}, 
-#' if the used method decomposed spot volatility into a daily and an intraday component. Methods that provide this
-#' output: \code{"detper"}.
+#' An \code{xts} or \code{numeric} object (depending on the input) containing estimates of the daily volatility levels
+#' for each day \eqn{t} in \code{data}, if the used method decomposed spot volatility into a daily and an intraday component. 
+#' Methods that provide this output: \code{"detper"}.
 #' 
 #' \code{periodic}
 #' 
-#' Estimates of the intraday periodicity factor for each day interval \eqn{i} between \code{marketopen}
-#' and \code{marketclose}, if the spot volatility was decomposed into a daily and an intraday component.
-#' Methods that provide this output: \code{"detper"}.
+#' An \code{xts} or \code{numeric} object (depending on the input) containing estimates of the intraday periodicity factor 
+#' for each day interval \eqn{i} between \code{marketopen} and \code{marketclose}, if the spot volatility was decomposed 
+#' into a daily and an intraday component. If the output is in \code{xts} format, this periodicity factor will be dated to
+#' the first day of the input data, but it is identical for each day in the sample. Methods that provide this output: \code{"detper"}.
 #' 
 #' \code{par}
 #' 
@@ -211,18 +214,19 @@ NULL
 #'    delta_c = c(0.25, -0.05, -0.2, 0.13, 0.02), delta_s = c(-1.2, 0.11, 0.26, -0.03, 0.08))
 #' # next method will take around 110 iterations
 #' vol2 <- spotvol(sample_prices_5min, method = "stochper", init = init)
-#' plot(vol1$spot, type="l")
-#' lines(vol2$spot, col="red")
+#' plot(as.numeric(vol1$spot[1:780]), type="l")
+#' lines(as.numeric(vol2$spot[1:780]), col="red")
 #' legend("topright", c("detper", "stochper"), col = c("black", "red"), lty=1)
 #' 
 #' # various kernel estimates
-#' vol3 <- spotvol(sample_prices_5min, method = "kernel", est = "plugin")
-#' vol4 <- spotvol(sample_prices_5min, method = "kernel", h = 0.05)
-#' vol5 <- spotvol(sample_prices_5min, method = "kernel")
-#' plot(vol3$spot[1:1000], type="l")
-#' lines(vol4$spot[1:1000], col="red")
-#' lines(vol5$spot[1:1000], col="blue")
-#' legend("topright", c("h = plugin estimate", "h = 0.05",
+#' h1 = bw.nrd0((1:nrow(sample_returns_5min))*(5*60))
+#' vol3 <- spotvol(sample_returns_5min, method = "kernel", h = h1)
+#' vol4 <- spotvol(sample_returns_5min, method = "kernel", est = "quarticity")
+#' vol5 <- spotvol(sample_returns_5min, method = "kernel", est = "cv")
+#' plot(vol3$spot[1:2880], type="l")
+#' lines(vol4$spot[1:2880], col="red")
+#' lines(vol5$spot[1:2880], col="blue")
+#' legend("topright", c("h = simple estimate", "h = quarticity corrected",
 #'   "h = crossvalidated"), col = c("black", "red", "blue"), lty=1)
 #' 
 #' @references
@@ -240,54 +244,55 @@ NULL
 #' 
 #' Taylor, S. J. and X. Xu (1997). The incremental volatility information in one million
 #' foreign exchange quotations. Journal of Empirical Finance 4, 317-340.
-spotvol <- function(data, makeReturns = TRUE, method = "detper", on = "minutes", k = 5,
+spotvol <- function(data, method = "detper", on = "minutes", k = 5,
                     marketopen = "09:30:00", marketclose = "16:00:00", ...)  
 {
-  Sys.setenv(TZ="GMT") # only for convenience during testing
-  dates = unique(format(time(data), "%Y-%m-%d"))
-  cDays = length(dates)
-  rdata = mR = c()
   if(on == "seconds" || on == "secs") delta = k 
   if(on == "minutes" || on == "mins") delta = k*60  
   if(on == "hours") delta = k*3600 
-  intraday = seq(from = times(marketopen), to = times(marketclose), by = times(delta/(24*3600))) 
-  if(as.character(tail(intraday,1)) != marketclose) intraday = c(intraday, marketclose)
-  if(makeReturns) intraday = intraday[2:length(intraday)]
-  for (d in 1:cDays) {
-    datad = data[as.character(dates[d])]
-    datad = aggregatePrice(datad, on = on, k = k , marketopen = marketopen, marketclose = marketclose)
-    z = xts(rep(1, length(intraday)), order.by = timeDate(paste(dates[d], as.character(intraday), sep=""), format = "%Y-%m-%d %H:%M:%S"))
-    datad = merge.xts(z, datad)$datad
-    datad = na.locf(datad)
-    if (makeReturns)
-    {
+  if (inherits(data, what = "xts"))
+  {
+    Sys.setenv(TZ="GMT") # only for convenience during testing
+    dates = unique(format(time(data), "%Y-%m-%d"))
+    cDays = length(dates)
+    rdata = mR = c()
+    intraday = seq(from = times(marketopen), to = times(marketclose), by = times(delta/(24*3600))) 
+    if(as.character(tail(intraday,1)) != marketclose) intraday = c(intraday, marketclose)
+    intraday = intraday[2:length(intraday)]
+    for (d in 1:cDays) {
+      datad = data[as.character(dates[d])]
+      datad = aggregatePrice(datad, on = on, k = k , marketopen = marketopen, marketclose = marketclose)
+      z = xts(rep(1, length(intraday)), order.by = timeDate(paste(dates[d], as.character(intraday), sep=""), format = "%Y-%m-%d %H:%M:%S"))
+      datad = merge.xts(z, datad)$datad
+      datad = na.locf(datad)
       rdatad = makeReturns(datad)
       rdatad = rdatad[time(rdatad) > min(time(rdatad))]
       rdata = rbind(rdata, rdatad)
       mR = rbind(mR, as.numeric(rdatad))
     }
-    else 
-    {
-      rdata = rbind(rdata, datad)
-      mR = rbind(mR, as.numeric(datad))
-    } 
   }
-  mR[is.na(mR)]=0
+  else if (class(data) == "matrix")
+  {
+    mR = data
+    rdata = NULL
+  }
+  else stop("Input data has to consist of either of the following: 
+            1. An xts object containing price data
+            2. A matrix containing return data")
+  mR[is.na(mR)]=0 # is this needed?
 
   options <- list(...)
   out = switch(method, 
-           detper = detper(mR, options = options), 
-           stochper = stochper(mR, options = options),
+           detper = detper(mR = mR, rdata = rdata, options = options), 
+           stochper = stochper(mR, rdata = rdata, options = options),
            kernel = kernelestim(mR, delta, options = options))  
-  if("periodic" %in% names(out)) names(out$periodic) <- as.character(intraday)
-  
   return(out)
 }
 
 # Deterministic periodicity model
 # 
 # Modified spotVol function from highfrequency package
-detper <- function(mR, options = list()) 
+detper <- function(mR, rdata = NULL, options = list()) 
 {
   # default options, replace if user-specified
   op <- list(dailyvol = "bipower", periodicvol = "TML", dummies = FALSE, P1 = 5, P2 = 5)
@@ -295,7 +300,7 @@ detper <- function(mR, options = list())
   
   cDays = nrow(mR)
   M = ncol(mR)
-  if (cDays == 1) 
+  if (cDays == 1 & is.null(rdata)) 
   { 
     mR = as.numeric(mR)
     estimdailyvol = switch(op$dailyvol, 
@@ -305,18 +310,30 @@ detper <- function(mR, options = list())
   } 
   else 
   {
+    if (is.null(rdata))
+    {
     estimdailyvol = switch(op$dailyvol, 
-                           bipower = apply(mR, 1, "rBPCov"),
-                           medrv = apply(mR, 1, "medRV"),
-                           rv = apply(mR, 1, "RV"))
+                             bipower = apply(mR, 1, "rBPCov"),
+                             medrv = apply(mR, 1, "medRV"),
+                             rv = apply(mR, 1, "RV"))
+    }
+    else
+    {
+    estimdailyvol = switch(op$dailyvol, 
+                              bipower = apply.daily(rdata, rBPCov),
+                              medrv = apply.daily(rdata, medRV),
+                              rv = apply.daily(rdata, RV))
+    dates = time(estimdailyvol)
+    }
   }  
-  if (cDays <= 50) {
+  if (cDays <= 50) 
+  {
     print("Periodicity estimation requires at least 50 observations. Periodic component set to unity")
     estimperiodicvol = rep(1, M)
   }
   else 
   {
-    mstdR = mR/sqrt(estimdailyvol * (1/M))
+    mstdR = mR/sqrt(as.numeric(estimdailyvol) * (1/M))
     selection = c(1:M)[ (nrow(mR)-apply(mR,2,'countzeroes')) >=20] 
     # preferably no na is between
     selection = c( min(selection) : max(selection) )
@@ -325,13 +342,24 @@ detper <- function(mR, options = list())
                                     dummies = op$dummies, P1 = op$P1, P2 = op$P2)[[1]]
     estimperiodicvol = rep(1,M)
     estimperiodicvol[selection] = estimperiodicvol_temp
-    mfilteredR = mR/matrix(rep(estimperiodicvol, cDays), 
-                         byrow = T, nrow = cDays)
-    estimdailyvol = switch(op$dailyvol, bipower = apply(mfilteredR, 1, "rBPCov"),
+    mfilteredR = mR/matrix(rep(estimperiodicvol, cDays), byrow = T, nrow = cDays)
+    estimdailyvol = switch(op$dailyvol, 
+                            bipower = apply(mfilteredR, 1, "rBPCov"),
                             medrv = apply(mfilteredR, 1, "medRV"), 
                             rv = apply(mfilteredR, 1, "RV"))
-    out <- list(spot = rep(sqrt(estimdailyvol * (1/M)), each = M) * rep(estimperiodicvol, cDays),
-                daily = estimdailyvol,
+    spot = rep(sqrt(as.numeric(estimdailyvol) * (1/M)), each = M) * rep(estimperiodicvol, cDays)
+    if (is.null(rdata)) 
+    {
+      spot <- matrix(spot, nrow = cDays, ncol = M, byrow = TRUE)
+    }
+    else 
+    {
+      spot <- xts(spot, order.by = time(rdata))
+      estimdailyvol <- xts(estimdailyvol, order.by = dates)
+      estimperiodicvol <- xts(estimperiodicvol, order.by = time(rdata[1:M]))
+    }
+    out <- list(spot = spot, 
+                daily = estimdailyvol, 
                 periodic = estimperiodicvol)
     class(out) <- "spotvol"
     return(out)
@@ -341,7 +369,7 @@ detper <- function(mR, options = list())
 # Stochastic periodicity model
 # 
 # This function estimates the spot volatility by using the stochastic periodcity model of Beltratti & Morana (2001)
-stochper <- function(mR, options = list()) 
+stochper <- function(mR, rdata = NULL, options = list()) 
 {
   # default options, replace if user-specified
   op <- list(init = list(), P1 = 5, P2 = 5, control = list(trace=1, maxit=500))
@@ -396,7 +424,15 @@ stochper <- function(mR, options = list())
   estimates <- c(exp(opt$par["sigma"]), exp(opt$par["sigma_mu"]), exp(opt$par["sigma_h"]), exp(opt$par["sigma_k"]),
                  exp(opt$par["phi"])/(1+exp(opt$par["phi"])), exp(opt$par["rho"])/(1+exp(opt$par["rho"])), opt$par[-(1:6)])
 
-  out <- list(spot = sigmahat,
+  if (is.null(rdata)) 
+  {
+    spot <- matrix(sigmahat, nrow = days, ncol = N, byrow = TRUE)
+  }
+  else 
+  {
+    spot <- xts(sigmahat, order.by = time(rdata))
+  }
+  out <- list(spot = spot,
               par = estimates)
   class(out) <- "spotvol"
   return(out)
@@ -474,9 +510,9 @@ kernelestim <- function(mR, delta = 300, options = list())
   D = nrow(mR)
   N = ncol(mR)
   if (N < 100 & op$est == "cv") warning("Cross-validation may not return optimal results for small samples.")
-  if (op$type == "beta" & op$est == "plugin" ) 
+  if (op$type == "beta" & op$est == "quarticity" ) 
   {
-    warning("No plugin estimator available for Beta kernel bandwidth.
+    warning("No standard estimator available for Beta kernel bandwidth.
                 Cross-validation will be used instead.")
     op$est = "cv" 
   }
@@ -490,8 +526,11 @@ kernelestim <- function(mR, delta = 300, options = list())
   {
     if (is.null(op$h))
     {
-      cat(paste("Estimating optimal bandwidth for day", d, "of", D, "...\n"))
-      h[d] <- estbandwidth(mR[d, ], delta = delta, type = op$type, est = op$est, lower = op$lower, upper = op$upper)
+      quarticity = (N/3)*rowSums(mR^4)
+      qscale = quarticity^0.2
+      qmult = qscale/sqrt((1/D)*sum(qscale^2))
+      if (op$est == "cv") cat(paste("Estimating optimal bandwidth for day", d, "of", D, "...\n"))
+      h[d] <- estbandwidth(mR[d, ], delta = delta, qmult = qmult[d], type = op$type, est = op$est, lower = op$lower, upper = op$upper)
     }
     for(n in 1:N)
     {
@@ -517,34 +556,40 @@ kernelestim <- function(mR, delta = 300, options = list())
 kernelk <- function(x, type = "gaussian", b = 1, y = 1)
 {
   if (type == "gaussian") return(dnorm(x))  
+  if (type == "epanechnikov")
+  {
+    z = (3/4)*(1-x^2)
+    z[abs(x) > 1] = 0
+    return(z)
+  }
   if (type == "beta") return(dbeta(x, y/b + 1, (1-y)/b + 1))
 }
 
 # estimate optimal bandwidth paramater h
 # by default, this is done through crossvalidation (cv)
 # else the formula for h_opt in Kristensen(2010) is approximated
-estbandwidth <- function(x, delta = 300, type = "gaussian", est = "cv", lower = NULL, upper = NULL)
+estbandwidth <- function(x, delta = 300, qmult = 1, type = "gaussian", est = "cv", lower = NULL, upper = NULL)
 {
   N = length(x)
   S = N*delta
   default = bw.nrd0((1:N)*delta)
+  if (type == "epanechnikov") default = default*2.34
 
-  if (est == "plugin")
+  if (est == "quarticity")
   {  
-    quarticity = (N/3)*sum(x^4)
-    h = default*quarticity^0.2 # needs scaling
+    h = default*qmult 
   }
   if (est == "cv")
   {
-    if (type == "gaussian")
-    {
-      if (is.null(lower)) lower = default/5
-      if (is.null(upper)) upper = default*5
-    }
     if (type == "beta")
     {
       if (is.null(lower)) lower = 0.0001
       if (is.null(upper)) upper = 1
+    }
+    else
+    {
+      if (is.null(lower)) lower = default/3
+      if (is.null(upper)) upper = default*3
     }
     opt <- optimize(ISE, c(lower, upper), x = x, type = type, delta = delta)
     h = opt$minimum
