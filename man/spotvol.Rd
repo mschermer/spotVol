@@ -4,7 +4,7 @@
 \title{spotvol}
 \usage{
 spotvol(data, method = "detper", on = "minutes", k = 5,
-  marketopen = "09:30:00", marketclose = "16:00:00", ...)
+  marketopen = "09:30:00", marketclose = "16:00:00", tz = "GMT", ...)
 }
 \arguments{
 \item{data}{Either an \code{xts} object, containing price data, or a \code{matrix} containing returns.
@@ -15,7 +15,7 @@ in matrix form, where each row corresponds to a day, and each column to an intra
 will be in the same form as the input (\code{xts} or \code{matrix}/\code{numeric}).}
 
 \item{method}{specifies which method will be used to estimate the spot volatility. Options
-include \code{"detper"} and \code{"stochper"}. See Details.}
+include \code{"detper"} and \code{"stochper"}. See 'Details'.}
 
 \item{on}{string indicating the time scale in which \code{k} is expressed.
 Possible values are: \code{"secs", "seconds", "mins", "minutes", "hours"}.}
@@ -24,9 +24,14 @@ Possible values are: \code{"secs", "seconds", "mins", "minutes", "hours"}.}
 E.g. to aggregate an \code{xts} object to the 5 minute frequency, set \code{k = 5} and
 \code{on = "minutes"}.}
 
-\item{marketopen}{the market opening time. By default, \code{marketopen = "09:30:00"}.}
+\item{marketopen}{the market opening time. This should be in the time zone specified by \code{tz}.
+By default, \code{marketopen = "09:30:00"}.}
 
-\item{marketclose}{the market closing time. By default, \code{marketclose = "16:00:00"}.}
+\item{marketclose}{the market closing time. This should be in the time zone specified by \code{tz}
+By default, \code{marketclose = "16:00:00"}.}
+
+\item{tz}{string specifying the time zone to which the times in \code{data} and/or \code{marketopen}/
+\code{marketclose} belong. Note: your system's time will be set to this time zone. Default = \code{"GMT"}.}
 
 \item{...}{method-specific parameters (see 'Details').}
 }

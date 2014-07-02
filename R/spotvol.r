@@ -170,8 +170,12 @@ NULL
 #' @param k positive integer, indicating the number of periods to aggregate over.
 #'  E.g. to aggregate an \code{xts} object to the 5 minute frequency, set \code{k = 5} and
 #'  \code{on = "minutes"}.
-#' @param marketopen the market opening time. By default, \code{marketopen = "09:30:00"}.
-#' @param marketclose the market closing time. By default, \code{marketclose = "16:00:00"}.
+#' @param marketopen the market opening time. This should be in the time zone specified by \code{tz}.
+#' By default, \code{marketopen = "09:30:00"}.
+#' @param marketclose the market closing time. This should be in the time zone specified by \code{tz}
+#' By default, \code{marketclose = "16:00:00"}.
+#' @param tz string specifying the time zone to which the times in \code{data} and/or \code{marketopen}/
+#' \code{marketclose} belong. Note: your system's time will be set to this time zone. Default = \code{"GMT"}.
 #' @param ... method-specific parameters (see 'Details').
 #' 
 #' @return
@@ -245,24 +249,30 @@ NULL
 #' Taylor, S. J. and X. Xu (1997). The incremental volatility information in one million
 #' foreign exchange quotations. Journal of Empirical Finance 4, 317-340.
 spotvol <- function(data, method = "detper", on = "minutes", k = 5,
-                    marketopen = "09:30:00", marketclose = "16:00:00", ...)  
+                    marketopen = "09:30:00", marketclose = "16:00:00", tz = "GMT", ...)  
 {
-  if(on == "seconds" || on == "secs") delta = k 
-  if(on == "minutes" || on == "mins") delta = k*60  
+  if(on == "seconds" | on == "secs") delta = k 
+  if(on == "minutes" | on == "mins") delta = k*60  
   if(on == "hours") delta = k*3600 
   if (inherits(data, what = "xts"))
   {
-    Sys.setenv(TZ="GMT") # only for convenience during testing
+    Sys.setenv(TZ = tz)
+    if(Sys.timezone() != tz) stop(paste("Unable to set system time zone (\"", Sys.timezone(), "\") to data time zone (\"", tz, "\"). ", 
+                                    "Use a different time zone, such as GMT or UTC.", sep = "")) 
     dates = unique(format(time(data), "%Y-%m-%d"))
     cDays = length(dates)
     rdata = mR = c()
     intraday = seq(from = times(marketopen), to = times(marketclose), by = times(delta/(24*3600))) 
-    if(as.character(tail(intraday,1)) != marketclose) intraday = c(intraday, marketclose)
+    if(as.character(tail(intraday, 1)) != marketclose) intraday = c(intraday, marketclose)
     intraday = intraday[2:length(intraday)]
-    for (d in 1:cDays) {
+    for (d in 1:cDays) 
+    {
       datad = data[as.character(dates[d])]
+      if (!all(format(time(datad), format = "%Z") == tz)) stop(paste("Not all data on ", dates[d], " is in time zone \"", tz,
+                                                         "\". This may be due to daylight saving time. Try using a time zone",
+                                                         " without daylight saving, such as GMT.", sep = ""))
       datad = aggregatePrice(datad, on = on, k = k , marketopen = marketopen, marketclose = marketclose)
-      z = xts(rep(1, length(intraday)), order.by = timeDate(paste(dates[d], as.character(intraday), sep=""), format = "%Y-%m-%d %H:%M:%S"))
+      z = xts(rep(1, length(intraday)), tzone = tz, order.by = as.POSIXct(paste(dates[d], as.character(intraday), sep=" ", tz = tz)))
       datad = merge.xts(z, datad)$datad
       datad = na.locf(datad)
       rdatad = makeReturns(datad)
