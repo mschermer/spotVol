@@ -1,0 +1,52 @@
+%\VignetteIndexEntry{User Manual}
+%\VignetteEngine{knitr}
+
+\documentclass{article}
+
+\begin{document}
+
+\title{Estimating spot volatility in R:\\ The spotvolatility package}
+\author{Maarten Schermer}
+\date{\today}
+
+\maketitle
+
+\section{General usage}
+The \texttt{spotvolatility} package offers several methods to estimate spot volatility and its intraday seasonality, using high-frequency data. It is an extension of the function \texttt{spotvol} in the \texttt{highfrequency} package. That function is included as one of the methods in this package, and multiple other spot volatility estimation methods from recent academic literature have been added.\\[2ex]
+The spot volatility $\sigma_{t,n}$ can be described as the the volatility of returns on a certain moment $n$ during day $t$. These returns $r_{t,n}$ are commonly modeled as 
+\begin{equation} \label{eq:returns}
+r_{t,n} = \sigma_{t,n}\varepsilon_{t,n},
+\end{equation}
+where $\varepsilon_{t,n} \sim \mbox{IID}(0, \frac{1}{N})$ is a white noise process. $N$ denotes the number of intraday periods, and we will denote the number of days with $T$.\\[2ex]
+The spot volatility estimates $\hat{sigma}_{t,n}$ can be estimated from these returns using the \texttt{spotvol} function. The estimates are stored as \texttt{spot} in a \texttt{spotvol} object, which is a list containing certain outputs of the function, depending on the method used. These estimates can be called in the following way
+<<message=FALSE>>=
+library(spotvolatility)
+out <- spotvol(sample_prices_5min)
+class(out)
+sigma_hat <- out$spot
+@
+\subsection{Input data: prices or returns}
+The \texttt{spotvol} function accepts two sorts of input:
+\begin{enumerate}
+\item An \texttt{xts} object containing price data.
+\item A \texttt{matrix} containing return data.
+\end{enumerate}
+The first can be used for raw price data, i.e. from the NYSE TAQ database. The \texttt{highfrequency} package offers several methods to process data files into \texttt{xts} format. The \texttt{spotvol} function will then aggregate this price data to the frequency specified by the user and calculate the return series.
+<<>>=
+str(sample_prices_5min)
+out <- spotvol(sample_prices_5min)
+@
+The second way of inputting data is through a \texttt{matrix}, which can be convenient if your data has already been processed. No further permutations will be made to the data, as it is assumed to be in the right format. Therefore, it should satisfy the following restrictions:
+\begin{itemize}
+\item The returns should be equispaced, i.e. the time between each pair of observations should be equal. 
+\item Each row of the matrix should correspond to a day.
+\item Each column of the matrix should correspond to an intraday time interval.
+\end{itemize}
+For example, a matrix containing 5-minute returns of 60 days of 24h exchange rate data should have 60 rows and 288 columns:
+<<>>=
+str(sample_returns_5min)
+out <- spotvol(sample_returns_5min)
+@
+
+
+\end{document}
