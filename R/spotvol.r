@@ -175,7 +175,7 @@ NULL
 #' @param marketclose the market closing time. This should be in the time zone specified by \code{tz}
 #' By default, \code{marketclose = "16:00:00"}.
 #' @param tz string specifying the time zone to which the times in \code{data} and/or \code{marketopen}/
-#' \code{marketclose} belong. Note: your system's time will be set to this time zone. Default = \code{"GMT"}.
+#' \code{marketclose} belong. Default = \code{"GMT"}.
 #' @param ... method-specific parameters (see 'Details').
 #' 
 #' @return
@@ -256,9 +256,7 @@ spotvol <- function(data, method = "detper", on = "minutes", k = 5,
   if(on == "hours") delta = k*3600 
   if (inherits(data, what = "xts"))
   {
-    Sys.setenv(TZ = tz)
-    if(Sys.timezone() != tz) stop(paste("Unable to set system time zone (\"", Sys.timezone(), "\") to data time zone (\"", tz, "\"). ", 
-                                    "Use a different time zone, such as GMT or UTC.", sep = "")) 
+    data = xts(data, order.by = as.POSIXct(time(data), tz = tz), tzone = tz)
     dates = unique(format(time(data), "%Y-%m-%d"))
     cDays = length(dates)
     rdata = mR = c()
@@ -271,8 +269,8 @@ spotvol <- function(data, method = "detper", on = "minutes", k = 5,
       if (!all(format(time(datad), format = "%Z") == tz)) stop(paste("Not all data on ", dates[d], " is in time zone \"", tz,
                                                          "\". This may be due to daylight saving time. Try using a time zone",
                                                          " without daylight saving, such as GMT.", sep = ""))
-      datad = aggregatePrice(datad, on = on, k = k , marketopen = marketopen, marketclose = marketclose)
-      z = xts(rep(1, length(intraday)), tzone = tz, order.by = as.POSIXct(paste(dates[d], as.character(intraday), sep=" ", tz = tz)))
+      datad = aggregatePrice(datad, on = on, k = k , marketopen = marketopen, marketclose = marketclose, tz = tz)
+      z = xts(rep(1, length(intraday)), tzone = tz, order.by = as.POSIXct(paste(dates[d], as.character(intraday), sep=" "), tz = tz))
       datad = merge.xts(z, datad)$datad
       datad = na.locf(datad)
       rdatad = makeReturns(datad)
@@ -884,6 +882,27 @@ center = function()
   g=function(y){ return( sqrt(2/pi)*exp(y-exp(2*y)/2)  )}
   f=function(y){ return( y*g(y)    )  }
   return( integrate(f,-Inf,Inf)$value )
+}
+
+# modified version of 'aggregatePrice' from highfrequency package
+aggregatePrice = function (ts, FUN = "previoustick", on = "minutes", k = 1, marketopen = "09:30:00", marketclose = "16:00:00", tz = "GMT") 
+{
+  ts2 = aggregatets(ts, FUN = FUN, on, k)
+  date = strsplit(as.character(index(ts)), " ")[[1]][1]
+  
+  #open
+  a = as.POSIXct(paste(date, marketopen), tz = tz)
+  b = as.xts(matrix(as.numeric(ts[1]),nrow=1), a)
+  ts3 = c(b, ts2)
+  
+  #close
+  aa = as.POSIXct(paste(date, marketclose), tz = tz)
+  condition = index(ts3) < aa
+  ts3 = ts3[condition]
+  bb = as.xts(matrix(as.numeric(last(ts)),nrow=1), aa)
+  ts3 = c(ts3, bb)
+  
+  return(ts3)
 }
 
 #' Sample prices data
