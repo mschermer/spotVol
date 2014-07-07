@@ -211,8 +211,13 @@ NULL
 #' @examples
 #' data(sample_prices_5min)
 #' 
-#' # deterministic versus stochastic periodicity
+#' # default method, deterministic periodicity
 #' vol1 <- spotvol(sample_prices_5min)
+#' par.def <- par(no.readonly = TRUE)
+#' plot(vol1)
+#' par(par.def)
+#' 
+#' # compare to stochastic periodicity
 #' init = list(sigma = 0.03, sigma_mu = 0.005, sigma_h = 0.007,
 #'    sigma_k = 0.06, phi = 0.194, rho = 0.986, mu = c(1.87,-0.42),
 #'    delta_c = c(0.25, -0.05, -0.2, 0.13, 0.02), delta_s = c(-1.2, 0.11, 0.26, -0.03, 0.08))
@@ -227,11 +232,12 @@ NULL
 #' vol3 <- spotvol(sample_returns_5min, method = "kernel", h = h1)
 #' vol4 <- spotvol(sample_returns_5min, method = "kernel", est = "quarticity")
 #' vol5 <- spotvol(sample_returns_5min, method = "kernel", est = "cv")
-#' plot(vol3$spot[1:2880], type="l")
-#' lines(vol4$spot[1:2880], col="red")
-#' lines(vol5$spot[1:2880], col="blue")
+#' plot(vol3, length = 2880)
+#' lines(as.numeric(t(vol4$spot))[1:2880], col="red")
+#' lines(as.numeric(t(vol5$spot))[1:2880], col="blue")
 #' legend("topright", c("h = simple estimate", "h = quarticity corrected",
 #'   "h = crossvalidated"), col = c("black", "red", "blue"), lty=1)
+#' par(par.def)
 #' 
 #' @references
 #' Andersen, T. G. and T. Bollerslev (1997). Intraday periodicity and volatility
@@ -293,7 +299,7 @@ spotvol <- function(data, method = "detper", on = "minutes", k = 5,
   out = switch(method, 
            detper = detper(mR = mR, rdata = rdata, options = options), 
            stochper = stochper(mR, rdata = rdata, options = options),
-           kernel = kernelestim(mR, delta, options = options))  
+           kernel = kernelestim(mR, rdata = rdata, delta, options = options))  
   return(out)
 }
 
@@ -509,7 +515,7 @@ ssmodel <- function(par_t, days, N = 288, P1 = 5, P2 = 5)
 # Kernel estimation method
 # 
 # See Kristensen (2010)
-kernelestim <- function(mR, delta = 300, options = list())
+kernelestim <- function(mR, rdata = NULL, delta = 300, options = list())
 {
   # default options, replace if user-specified
   op <- list(type = "gaussian", h = NULL, est = "cv", lower = NULL, upper = NULL)
@@ -554,7 +560,16 @@ kernelestim <- function(mR, delta = 300, options = list())
       sigma2hat[d, n] <- K %*% (mR[d, ]^2)
     }
   }
-  out = list(spot = as.vector(t(sqrt(sigma2hat))), par = list(h = h))
+  spot = as.vector(t(sqrt(sigma2hat)))
+  if (is.null(rdata)) 
+  {
+    spot <- matrix(spot, nrow = D, ncol = N, byrow = TRUE)
+  }
+  else 
+  {
+    spot <- xts(spot, order.by = time(rdata))
+  }
+  out = list(spot = spot, par = list(h = h))
   class(out) <- "spotvol"
   return(out)
 }
@@ -667,6 +682,40 @@ MDtest <- function(x, y, N, g0)
 {
   
   
+}
+
+#' @export
+plot.spotvol <- function(sv, length = NULL)
+{
+  plottable = c("spot", "periodic", "daily")
+  elements = names(sv)
+  nplots = sum(is.element(plottable, elements))
+  
+  if (nplots == 3) 
+  {
+    par(mar = c(3, 3, 3, 1))
+    layout(matrix(c(1,2,1,3), nrow = 2))
+  }
+  spot <- as.numeric(t(sv$spot))
+  if(is.null(length)) length = length(spot)
+  
+  plot(spot[1:length], type = "l", xlab = "", ylab = "")
+  title(main = "Spot volatility")
+
+  if ("periodic" %in% elements)
+  {
+    periodic <- as.numeric(t(sv$periodic))
+    intraday <- time(sv$periodic)
+    plot(x = intraday, y = periodic, type = "l", xlab = "", ylab = "")
+    title(main = "Intraday periodicity")
+  }
+  if ("daily" %in% elements)
+  {
+    daily <- as.numeric(t(sv$daily))
+    dates <- as.Date(time(sv$daily))
+    plot(x = dates, y = daily, type = "l", xlab = "", ylab = "")
+    title(main = "Daily volatility")
+  } 
 }
 
 
