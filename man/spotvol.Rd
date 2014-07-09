@@ -183,6 +183,7 @@ data(sample_prices_5min)
 vol1 <- spotvol(sample_prices_5min)
 par.def <- par(no.readonly = TRUE)
 plot(vol1)
+par(par.def)
 
 # compare to stochastic periodicity
 init = list(sigma = 0.03, sigma_mu = 0.005, sigma_h = 0.007,
@@ -190,7 +191,6 @@ init = list(sigma = 0.03, sigma_mu = 0.005, sigma_h = 0.007,
    delta_c = c(0.25, -0.05, -0.2, 0.13, 0.02), delta_s = c(-1.2, 0.11, 0.26, -0.03, 0.08))
 # next method will take around 110 iterations
 vol2 <- spotvol(sample_prices_5min, method = "stochper", init = init)
-par(par.def)
 plot(as.numeric(vol1$spot[1:780]), type="l")
 lines(as.numeric(vol2$spot[1:780]), col="red")
 legend("topright", c("detper", "stochper"), col = c("black", "red"), lty=1)
@@ -201,7 +201,6 @@ vol3 <- spotvol(sample_returns_5min, method = "kernel", h = h1)
 vol4 <- spotvol(sample_returns_5min, method = "kernel", est = "quarticity")
 vol5 <- spotvol(sample_returns_5min, method = "kernel", est = "cv")
 plot(vol3, length = 2880)
-#plot(as.numeric(t(vol3$spot[1:2880])), type = "l")
 lines(as.numeric(t(vol4$spot))[1:2880], col="red")
 lines(as.numeric(t(vol5$spot))[1:2880], col="blue")
 legend("topright", c("h = simple estimate", "h = quarticity corrected",

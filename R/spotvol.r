@@ -647,40 +647,76 @@ ISE <- function(h, x, delta = 300, type = "gaussian")
   return(ISE)
 }
 
-# Piecewise constant volatility 
-#
+# Piecewise constant volatility method
 # See Fried (2012)
-constantPeriods <- function(mR)
+piecewise <- function(mR, m = 30, n = 20)
 {
-  periods <- list()
-  reference = mR[1,]
-  D = nrow(mR)
-  logR = log((mR - mean(mR))^2)
-  g = density(logR[2:D,1] - logR[1:(D-1),1]) 
-  g0 = 
-    for (i in 2:D)
+  cp <- changePoints(as.numeric(t(mR)), m = m, n = n)  
+  
+}
+
+# Detect points on which the volatility level changes
+# Input vR should be vector of returns
+changePoints <- function(vR, m = 30, n = 20)
+{
+  logR = log((vR - mean(vR))^2)
+  L = length(logR)
+  points = 0
+  np = length(points)
+  N = n + m
+  for (t in 1:L)
+  {
+    if (t - points[np] >= m + n)
     {
-      testperiod = mR[i,]
-      if (MDtest(testperiod, reference, length(mR), g0))
+      reference <- vR[(t - n - m + 1):(t - n)]
+      testperiod <- vR[(t - n + 1):t]  
+      if(MDtest(reference, testperiod))
       {
-        reference <- c(reference, testperiod)
-      }
-      else
-      {
-        periods <- c(periods, list(reference))
-        reference <- testperiod
-      }
+        points <- c(points, t - n)
+        np = np + 1
+      }    
     }
-  periods <- c(periods, list(reference))
-  return(periods)
+  }
+  return(points)
+}
+
+# Difference of medians test
+# See Fried (2012)
+# Returns TRUE if H0 is rejected
+DMtest <- function(x, y, alpha = 0.005, sscor = NULL)
+{
+  m = length(x)
+  n = length(y)
+  if (is.null(sscor))
+  {
+    # determine whether small sample correction should be applied,
+    # if user did not specify
+    if (m < 50 | n < 50) sscor = TRUE
+    else sscor = FALSE
+  }
+  xmed = median(x)
+  ymed = median(y)
+  xcor = x - xmed
+  ycor = y - ymed
+  delta = xmed - ymed
+  if (sscor)
+  {
+    S1 = median(c(abs(x - xmed), abs(y - ymed)))
+    delta = delta/S1
+    
+  }
+  
+  
 }
 
 # Median difference test
-#
 # See Fried (2012)
-MDtest <- function(x, y, N, g0)
+# Returns TRUE if H0 is rejected
+MDtest <- function(x, y, sscor = NULL)
 {
-  
+  m = length(x)
+  n = length(y)
+
   
 }
 
