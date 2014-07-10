@@ -39,7 +39,7 @@
 #' 
 #' @docType package
 #' @name spotvolatility
-#' @import highfrequency FKF chron timeDate
+#' @import highfrequency FKF chron timeDate BMS
 NULL
 
 #' spotvol
@@ -284,13 +284,11 @@ spotvol <- function(data, method = "detper", on = "minutes", k = 5,
       rdata = rbind(rdata, rdatad)
       mR = rbind(mR, as.numeric(rdatad))
     }
-  }
-  else if (class(data) == "matrix")
+  } else if (class(data) == "matrix")
   {
     mR = data
     rdata = NULL
-  }
-  else stop("Input data has to consist of either of the following: 
+  } else stop("Input data has to consist of either of the following: 
             1. An xts object containing price data
             2. A matrix containing return data")
   mR[is.na(mR)]=0 # is this needed?
@@ -321,8 +319,7 @@ detper <- function(mR, rdata = NULL, options = list())
                            bipower = rBPCov(mR), 
                            medrv = medRV(mR), 
                            rv = RV(mR))
-  } 
-  else 
+  } else 
   {
     if (is.null(rdata))
     {
@@ -330,8 +327,7 @@ detper <- function(mR, rdata = NULL, options = list())
                              bipower = apply(mR, 1, "rBPCov"),
                              medrv = apply(mR, 1, "medRV"),
                              rv = apply(mR, 1, "RV"))
-    }
-    else
+    } else
     {
     estimdailyvol = switch(op$dailyvol, 
                               bipower = apply.daily(rdata, rBPCov),
@@ -344,8 +340,7 @@ detper <- function(mR, rdata = NULL, options = list())
   {
     print("Periodicity estimation requires at least 50 observations. Periodic component set to unity")
     estimperiodicvol = rep(1, M)
-  }
-  else 
+  } else 
   {
     mstdR = mR/sqrt(as.numeric(estimdailyvol) * (1/M))
     selection = c(1:M)[ (nrow(mR)-apply(mR,2,'countzeroes')) >=20] 
@@ -365,8 +360,7 @@ detper <- function(mR, rdata = NULL, options = list())
     if (is.null(rdata)) 
     {
       spot <- matrix(spot, nrow = cDays, ncol = M, byrow = TRUE)
-    }
-    else 
+    } else 
     {
       spot <- xts(spot, order.by = time(rdata))
       estimdailyvol <- xts(estimdailyvol, order.by = dates)
@@ -441,8 +435,7 @@ stochper <- function(mR, rdata = NULL, options = list())
   if (is.null(rdata)) 
   {
     spot <- matrix(sigmahat, nrow = days, ncol = N, byrow = TRUE)
-  }
-  else 
+  } else 
   {
     spot <- xts(sigmahat, order.by = time(rdata))
   }
@@ -532,9 +525,7 @@ kernelestim <- function(mR, rdata = NULL, delta = 300, options = list())
   }
   t <- (1:N)*delta
   S = N*delta
-  if (is.null(op$h)) h <- numeric(D)
-  else h <- rep(op$h, length.out = D)
-  
+  if (is.null(op$h)) h <- numeric(D) else h <- rep(op$h, length.out = D)
   sigma2hat <- matrix(NA, nrow = D, ncol = N)
   for(d in 1:D)
   {
@@ -551,8 +542,7 @@ kernelestim <- function(mR, rdata = NULL, delta = 300, options = list())
       if (op$type == "beta") 
       {
         K <- kernelk(t/S, type = op$type, b = h[d], y = t[n]/S)
-      }
-      else
+      } else
       {
         K <- kernelk((t-t[n])/h[d], type = op$type)/h[d]
       }
@@ -564,8 +554,7 @@ kernelestim <- function(mR, rdata = NULL, delta = 300, options = list())
   if (is.null(rdata)) 
   {
     spot <- matrix(spot, nrow = D, ncol = N, byrow = TRUE)
-  }
-  else 
+  } else 
   {
     spot <- xts(spot, order.by = time(rdata))
   }
@@ -608,8 +597,7 @@ estbandwidth <- function(x, delta = 300, qmult = 1, type = "gaussian", est = "cv
     {
       if (is.null(lower)) lower = 0.0001
       if (is.null(upper)) upper = 1
-    }
-    else
+    } else
     {
       if (is.null(lower)) lower = default/3
       if (is.null(upper)) upper = default*3
@@ -632,8 +620,7 @@ ISE <- function(h, x, delta = 300, type = "gaussian")
     if (type == "beta") 
     {
       K <- kernelk(t/S, type = type, b = h, y = t[n]/S)
-    }
-    else
+    } else
     {
       K <- kernelk((t-t[n])/h, type = type)/h
     }
@@ -649,15 +636,22 @@ ISE <- function(h, x, delta = 300, type = "gaussian")
 
 # Piecewise constant volatility method
 # See Fried (2012)
-piecewise <- function(mR, m = 30, n = 20)
+piecewise <- function(mR, alpha = 0.005, sscor = NULL, m = 30, n = 20)
 {
-  cp <- changePoints(as.numeric(t(mR)), m = m, n = n)  
+  if (is.null(sscor))
+  {
+    # determine whether small sample correction should be applied,
+    # if user did not specify
+    if (m < 50 | n < 50) sscor = TRUE else sscor = FALSE
+  }
+  cp <- changePoints(as.numeric(t(mR)), alpha = alpha, sscor = sscor, m = m, n = n)  
   
 }
 
 # Detect points on which the volatility level changes
 # Input vR should be vector of returns
-changePoints <- function(vR, m = 30, n = 20)
+# Returns vector of indices after which the volatility level in vR changed
+changePoints <- function(vR, type = "MDa", alpha = 0.005, sscor = FALSE, m = 30, n = 20)
 {
   logR = log((vR - mean(vR))^2)
   L = length(logR)
@@ -666,11 +660,15 @@ changePoints <- function(vR, m = 30, n = 20)
   N = n + m
   for (t in 1:L)
   {
-    if (t - points[np] >= m + n)
+    if (t - points[np] >= N)
     {
-      reference <- vR[(t - n - m + 1):(t - n)]
+      reference <- vR[(t - N + 1):(t - n)]
       testperiod <- vR[(t - n + 1):t]  
-      if(MDtest(reference, testperiod))
+      if(switch(type,
+                MDa = MDtest(reference, testperiod, type = type, alpha = alpha, sscor = sscor),
+                MDb = MDtest(reference, testperiod, type = type, alpha = alpha, sscor = sscor),
+                DM = DMtest(reference, testperiod, type = type, alpha = alpha, sscor = sscor)
+        ))
       {
         points <- c(points, t - n)
         np = np + 1
@@ -683,41 +681,76 @@ changePoints <- function(vR, m = 30, n = 20)
 # Difference of medians test
 # See Fried (2012)
 # Returns TRUE if H0 is rejected
-DMtest <- function(x, y, alpha = 0.005, sscor = NULL)
+DMtest <- function(x, y, alpha = 0.005, sscor = FALSE)
 {
   m = length(x)
   n = length(y)
-  if (is.null(sscor))
-  {
-    # determine whether small sample correction should be applied,
-    # if user did not specify
-    if (m < 50 | n < 50) sscor = TRUE
-    else sscor = FALSE
-  }
   xmed = median(x)
   ymed = median(y)
   xcor = x - xmed
   ycor = y - ymed
-  delta = xmed - ymed
+  delta1 = ymed - xmed
   if (sscor)
   {
     S1 = median(c(abs(x - xmed), abs(y - ymed)))
-    delta = delta/S1
+    delta1 = delta1/S1
     
   }
-  
-  
+  out <- density(c(xcor, ycor), kernel = "epanechnikov")
+  fmed <- as.numeric(quantile(out, probs = 0.5))
+  test = sqrt((m*n)/(m + n))*2*fmed*delta1
+  return(abs(test) > qnorm(1-alpha/2))
 }
 
 # Median difference test
 # See Fried (2012)
 # Returns TRUE if H0 is rejected
-MDtest <- function(x, y, sscor = NULL)
+MDtest <- function(x, y, alpha = 0.005, type = "MDa", sscor = FALSE)
 {
   m = length(x)
   n = length(y)
-
-  
+  N = m + n
+  lambda = m/N
+  yrep = rep(y, each = length(x))
+  delta2 = median(yrep - x)
+  if (sscor)
+  {
+    absdif = numeric(0)
+    for (i in 1:(m-1))
+    {
+      absdif = c(absdif, abs(x[i] - x[(i+1):m]))
+    }
+    for (j in 1:(n-1))
+    {
+      absdif = c(absdif, abs(x[j] - x[(j+1):n]))
+    } 
+    S2 = median(absdif) 
+    delta2 = delta2/S2
+    
+  }
+  if (type == "MDa")
+  {
+    z = rep(0, N)
+    z[1:m] = x
+    z[(m+1):N] = y
+    dif = rep(z, each = length(z))
+    dif = dif - z
+    dif[which(dif == 0)] = NA
+  } else if (type == "MDb")
+  {
+    difx = rep(x, each = length(x))
+    difx = difx - x
+    dify = rep(y, each = length(y))
+    dify = dify - y
+    dif = rep(0, length(difx) + length(dify))
+    dif[1:length(difx)] = difx
+    dif[(length(difx) + 1):(length(difx) + length(dify))] = dify
+    dif[which(dif == 0)] = NA
+  } else stop(paste("Type", type, "not found."))
+  out = density(dif, na.rm = TRUE, kernel = "epanechnikov")
+  g0 = (out$y[max(which(out$x < 0))] + out$y[max(which(out$x < 0))+1])/2
+  test = sqrt(12*lambda*(1 - lambda)*N)*g0*delta2
+  return(abs(test) > qnorm(1 - alpha/2))
 }
 
 #' @export
