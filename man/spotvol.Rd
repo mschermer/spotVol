@@ -3,8 +3,8 @@
 \alias{spotvol}
 \title{spotvol}
 \usage{
-spotvol(data, method = "detper", on = "minutes", k = 5,
-  marketopen = "09:30:00", marketclose = "16:00:00", tz = "GMT", ...)
+spotvol(data, method = "detper", ..., on = "minutes", k = 5,
+  marketopen = "09:30:00", marketclose = "16:00:00", tz = "GMT")
 }
 \arguments{
 \item{data}{Either an \code{xts} object, containing price data, or a \code{matrix} containing returns.

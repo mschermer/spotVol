@@ -254,8 +254,8 @@ NULL
 #' 
 #' Taylor, S. J. and X. Xu (1997). The incremental volatility information in one million
 #' foreign exchange quotations. Journal of Empirical Finance 4, 317-340.
-spotvol <- function(data, method = "detper", on = "minutes", k = 5,
-                    marketopen = "09:30:00", marketclose = "16:00:00", tz = "GMT", ...)  
+spotvol <- function(data, method = "detper", ..., on = "minutes", k = 5,
+                    marketopen = "09:30:00", marketclose = "16:00:00", tz = "GMT")  
 {
   if(on == "seconds" | on == "secs") delta = k 
   if(on == "minutes" | on == "mins") delta = k*60  
@@ -297,7 +297,8 @@ spotvol <- function(data, method = "detper", on = "minutes", k = 5,
   out = switch(method, 
            detper = detper(mR = mR, rdata = rdata, options = options), 
            stochper = stochper(mR, rdata = rdata, options = options),
-           kernel = kernelestim(mR, rdata = rdata, delta, options = options))  
+           kernel = kernelestim(mR, rdata = rdata, delta, options = options),
+           piecewise = piecewise(mR = mR, rdata = rdata, options = options))  
   return(out)
 }
 
@@ -636,22 +637,48 @@ ISE <- function(h, x, delta = 300, type = "gaussian")
 
 # Piecewise constant volatility method
 # See Fried (2012)
-piecewise <- function(mR, alpha = 0.005, sscor = NULL, m = 30, n = 20)
+piecewise <- function(mR, rdata = NULL, options = list())
 {
-  if (is.null(sscor))
+  # default options, replace if user-specified
+  op <- list(type = "MDa", m = 40, n = 20, alpha = 0.005, volest = "bipower", sscor = NULL)
+  op[names(options)] <- options
+  
+  if (is.null(op$sscor))
   {
     # determine whether small sample correction should be applied,
     # if user did not specify
-    if (m < 50 | n < 50) sscor = TRUE else sscor = FALSE
+    if (op$m < 50 | op$n < 50) op$sscor = TRUE else op$sscor = FALSE
   }
-  cp <- changePoints(as.numeric(t(mR)), alpha = alpha, sscor = sscor, m = m, n = n)  
-  
+  N = ncol(mR)
+  D = nrow(mR)
+  vR = as.numeric(t(mR))
+  spot = numeric(N*D)
+  cp <- changePoints(vR, type = op$type, alpha = op$alpha, sscor = op$sscor, m = op$m, n = op$n)  
+  for (i in 1:(N*D))
+  {
+    if (i > n) lastchange = max(which(cp + n < i)) else lastchange = 1
+    lastchange = cp[lastchange]
+    spot[i] = sqrt((1/(i - lastchange+1))*switch(op$volest, 
+                                        bipower = rBPCov(vR[(lastchange+1):i]),
+                                        medrv = medRV(vR[(lastchange+1):i]),
+                                        rv = RV(vR[(lastchange+1):i])))
+  }
+  if (is.null(rdata)) 
+  {
+    spot <- matrix(spot, nrow = D, ncol = N, byrow = TRUE)
+  } else 
+  {
+    spot <- xts(spot, order.by = time(rdata))
+  }
+  out = list(spot = spot, cp = cp)
+  class(out) <- "spotvol"
+  return(out) 
 }
 
 # Detect points on which the volatility level changes
 # Input vR should be vector of returns
 # Returns vector of indices after which the volatility level in vR changed
-changePoints <- function(vR, type = "MDa", alpha = 0.005, sscor = FALSE, m = 30, n = 20)
+changePoints <- function(vR, type = "MDa", alpha = 0.005, sscor = FALSE, m = 40, n = 20)
 {
   logR = log((vR - mean(vR))^2)
   L = length(logR)
@@ -662,12 +689,12 @@ changePoints <- function(vR, type = "MDa", alpha = 0.005, sscor = FALSE, m = 30,
   {
     if (t - points[np] >= N)
     {
-      reference <- vR[(t - N + 1):(t - n)]
-      testperiod <- vR[(t - n + 1):t]  
+      reference <- logR[(t - N + 1):(t - n)]
+      testperiod <- logR[(t - n + 1):t]  
       if(switch(type,
                 MDa = MDtest(reference, testperiod, type = type, alpha = alpha, sscor = sscor),
                 MDb = MDtest(reference, testperiod, type = type, alpha = alpha, sscor = sscor),
-                DM = DMtest(reference, testperiod, type = type, alpha = alpha, sscor = sscor)
+                DM = DMtest(reference, testperiod, alpha = alpha, sscor = sscor)
         ))
       {
         points <- c(points, t - n)
@@ -698,7 +725,8 @@ DMtest <- function(x, y, alpha = 0.005, sscor = FALSE)
   }
   out <- density(c(xcor, ycor), kernel = "epanechnikov")
   fmed <- as.numeric(quantile(out, probs = 0.5))
-  test = sqrt((m*n)/(m + n))*2*fmed*delta1
+  fmedvalue <- (out$y[max(which(out$x < fmed))] + out$y[max(which(out$x < fmed))+1])/2
+  test = sqrt((m*n)/(m + n))*2*fmedvalue*delta1
   return(abs(test) > qnorm(1-alpha/2))
 }
 
@@ -711,7 +739,7 @@ MDtest <- function(x, y, alpha = 0.005, type = "MDa", sscor = FALSE)
   n = length(y)
   N = m + n
   lambda = m/N
-  yrep = rep(y, each = length(x))
+  yrep = rep(y, each = m)
   delta2 = median(yrep - x)
   if (sscor)
   {
@@ -770,7 +798,10 @@ plot.spotvol <- function(sv, length = NULL)
   
   plot(spot[1:length], type = "l", xlab = "", ylab = "")
   title(main = "Spot volatility")
-
+  if ("cp" %in% elements)
+  {
+    abline(v = sv$cp[-1], lty = 3, col = "gray70")
+  }
   if ("periodic" %in% elements)
   {
     periodic <- as.numeric(t(sv$periodic))
