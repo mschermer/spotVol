@@ -21,28 +21,25 @@
 #' estimated using a quasi-maximum likelihood method based on the Kalman Filter. The package
 #' \code{FKF} is used to apply the Kalman filter.
 #' 
-#' @references
-#' Andersen, T. G. and T. Bollerslev (1997). Intraday periodicity and volatility
-#' persistence in financial markets. Journal of Empirical Finance 4, 115-158.
+#' @section Nonparametric filtering:
+#' This method by Kristensen (2010) filters the spot volatility in a nonparametric way by applying
+#' kernel weights to the standard realized volatility estimator. Different kernels and bandwidths can 
+#' be used to focus on specific characteristics of the volatility process.
 #' 
-#' Beltratti, A. and C. Morana (2001). Deterministic and stochastic methods for estimation
-#' of intraday seasonal components with high frequency data. Economic Notes 30, 205-234.
+#' @section Piecewise constant volatility:
+#' Another nonparametric method is that of Fried (2012), which assumes the volatility to be
+#' piecewise constant over local windows. Robust two-sample tests are applied to detect changes in 
+#' variability between subsequent windows. The spot volatility can then be estimated by evaluating 
+#' regular realized volatility estimators within each local window.
 #' 
-#' Boudt K., Croux C. and Laurent S. (2011). Robust estimation of intraweek periodicity
-#' in volatility and jump detection. Journal of Empirical Finance 18, 353-367.
-#' 
-#' Kristensen, Dennis (2010). Nonparametric filtering of the realized spot volatility: 
-#' A kernel-based approach. Econometric Theory 26, 60-93.
-#' 
-#' Taylor, S. J. and X. Xu (1997). The incremental volatility information in one million
-#' foreign exchange quotations. Journal of Empirical Finance 4, 317-340.
+#' @template references
 #' 
 #' @docType package
 #' @name spotvolatility
 #' @import highfrequency FKF chron timeDate BMS
 NULL
 
-#' spotvol
+#' Spot volatility estimation
 #' 
 #' @description
 #'
@@ -157,6 +154,33 @@ NULL
 #' When using the method \code{"kernel"}, in addition to the spot volatility estimates, all used values
 #' of the bandwidth \eqn{h} are returned.
 #' 
+#' \strong{Piecewise constant volatility (\code{"piecewise"})}
+#' 
+#' Parameters:
+#' \tabular{ll}{
+#' \code{type} \tab String specifying the type of test to be used. Options include 
+#' \code{"MDa", "MDb", "DM"}. See Fried (2012) for details. Default = \code{"MDa"}.\cr
+#' \code{m} \tab Number of observations to include in reference window. Default = \code{40}. \cr
+#' \code{n} \tab Number of observations to include in test window. Default = \code{20}. \cr
+#' \code{alpha} \tab Significance level to be used in tests. Note that the test will be executed many
+#' times (roughly equal to the total number of observations), so it is advised to use a small value for
+#' \code{alpha}, to avoid a lot of false positives. Default = \code{0.005}. \cr
+#' \code{volest} \tab String specifying the realized volatility estimator to be used in local windows.
+#' Possible values are \code{"bipower", "rv", "medrv"}. Default = \code{"bipower"}. \cr
+#' }
+#' Outputs (see 'Value' for a full description of each component):
+#' \itemize{
+#' \item{\code{spot}}
+#' \item{\code{cp}}
+#' }
+#' 
+#' This nonparametric method by Fried (2012) assumes the volatility to be piecewise constant over local windows. 
+#' Robust two-sample tests are applied to detect changes in variability between subsequent windows. The spot 
+#' volatility can then be estimated by evaluating regular realized volatility estimators within each local window.
+#' 
+#' Along with the spot volatility estimates, this method will return the detected change points in the volatility
+#' level. When plotting a \code{spotvol} object containing \code{cp}, these change points will be visualized.
+#' 
 #' @param data Either an \code{xts} object, containing price data, or a \code{matrix} containing returns.  
 #' For price data, irregularly spaced observations are allowed. They will be aggregated to the level 
 #' specified by parameters \code{on} and \code{k}. For return data, the observations are assumed to be
@@ -206,6 +230,11 @@ NULL
 #' A named list containing parameter estimates, for methods that estimate one or more parameters. 
 #' Methods that provide this output: \code{"stochper", "kernel"}.
 #' 
+#' \code{cp}
+#' 
+#' A vector containing the change points in the volatility, i.e. the observation indices after which the volatility level
+#' changed, according to the applied tests. The vector starts with a 0. Methods that provide this output: \code{"piecewise"}. 
+#' 
 #' 
 #' @export
 #' @examples
@@ -239,21 +268,14 @@ NULL
 #'   "h = crossvalidated"), col = c("black", "red", "blue"), lty=1)
 #' par(par.def)
 #' 
-#' @references
-#' Andersen, T. G. and T. Bollerslev (1997). Intraday periodicity and volatility
-#' persistence in financial markets. Journal of Empirical Finance 4, 115-158.
-#' 
-#' Beltratti, A. and C. Morana (2001). Deterministic and stochastic methods for estimation
-#' of intraday seasonal components with high frequency data. Economic Notes 30, 205-234.
-#' 
-#' Boudt K., Croux C. and Laurent S. (2011). Robust estimation of intraweek periodicity
-#' in volatility and jump detection. Journal of Empirical Finance 18, 353-367.
-#' 
-#' Kristensen, Dennis (2010). Nonparametric filtering of the realized spot volatility: 
-#' A kernel-based approach. Econometric Theory 26, 60-93.
-#' 
-#' Taylor, S. J. and X. Xu (1997). The incremental volatility information in one million
-#' foreign exchange quotations. Journal of Empirical Finance 4, 317-340.
+#' # piecewise constant volatility, using an example from Fried (2012)
+#' simdata <- matrix(sqrt(5/3)*rt(3000, df = 5), ncol = 500, byrow = TRUE)
+#' simdata <- c(1, 1, 1.5, 1.5, 2, 1)*simdata
+#' # the volatility of the simulated now changes at 1000, 2000 and 2500 
+#' vol6 <- spotvol(simdata, method = "piecewise", m = 100, n  = 50)
+#' plot(vol6)
+#'
+#' @template references
 spotvol <- function(data, method = "detper", ..., on = "minutes", k = 5,
                     marketopen = "09:30:00", marketclose = "16:00:00", tz = "GMT")  
 {
@@ -291,14 +313,14 @@ spotvol <- function(data, method = "detper", ..., on = "minutes", k = 5,
   } else stop("Input data has to consist of either of the following: 
             1. An xts object containing price data
             2. A matrix containing return data")
-  mR[is.na(mR)]=0 # is this needed?
+  mR[is.na(mR)] = 0 # is this needed?
 
   options <- list(...)
   out = switch(method, 
-           detper = detper(mR = mR, rdata = rdata, options = options), 
+           detper = detper(mR, rdata = rdata, options = options), 
            stochper = stochper(mR, rdata = rdata, options = options),
            kernel = kernelestim(mR, rdata = rdata, delta, options = options),
-           piecewise = piecewise(mR = mR, rdata = rdata, options = options))  
+           piecewise = piecewise(mR, rdata = rdata, options = options))  
   return(out)
 }
 
@@ -640,15 +662,9 @@ ISE <- function(h, x, delta = 300, type = "gaussian")
 piecewise <- function(mR, rdata = NULL, options = list())
 {
   # default options, replace if user-specified
-  op <- list(type = "MDa", m = 40, n = 20, alpha = 0.005, volest = "bipower", sscor = NULL)
+  op <- list(type = "MDa", m = 40, n = 20, alpha = 0.005, volest = "bipower", sscor = FALSE)
   op[names(options)] <- options
   
-  if (is.null(op$sscor))
-  {
-    # determine whether small sample correction should be applied,
-    # if user did not specify
-    if (op$m < 50 | op$n < 50) op$sscor = TRUE else op$sscor = FALSE
-  }
   N = ncol(mR)
   D = nrow(mR)
   vR = as.numeric(t(mR))
@@ -656,7 +672,7 @@ piecewise <- function(mR, rdata = NULL, options = list())
   cp <- changePoints(vR, type = op$type, alpha = op$alpha, sscor = op$sscor, m = op$m, n = op$n)  
   for (i in 1:(N*D))
   {
-    if (i > n) lastchange = max(which(cp + n < i)) else lastchange = 1
+    if (i > op$n) lastchange = max(which(cp + op$n < i)) else lastchange = 1
     lastchange = cp[lastchange]
     spot[i] = sqrt((1/(i - lastchange+1))*switch(op$volest, 
                                         bipower = rBPCov(vR[(lastchange+1):i]),
