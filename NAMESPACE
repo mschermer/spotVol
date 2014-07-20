@@ -2,8 +2,8 @@
 
 S3method(plot,spotvol)
 export(spotvol)
-import(BMS)
 import(FKF)
 import(chron)
 import(highfrequency)
-import(timeDate)
+importFrom(BMS,quantile.density)
+importFrom(robustbase,scaleTau2)

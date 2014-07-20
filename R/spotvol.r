@@ -36,7 +36,9 @@
 #' 
 #' @docType package
 #' @name spotvolatility
-#' @import highfrequency FKF chron timeDate BMS
+#' @import highfrequency FKF chron
+#' @importFrom robustbase scaleTau2
+#' @importFrom BMS quantile.density
 NULL
 
 #' Spot volatility estimation
@@ -662,23 +664,25 @@ ISE <- function(h, x, delta = 300, type = "gaussian")
 piecewise <- function(mR, rdata = NULL, options = list())
 {
   # default options, replace if user-specified
-  op <- list(type = "MDa", m = 40, n = 20, alpha = 0.005, volest = "bipower", sscor = FALSE)
+  op <- list(type = "MDa", m = 40, n = 20, alpha = 0.005, volest = "bipower")
   op[names(options)] <- options
   
   N = ncol(mR)
   D = nrow(mR)
   vR = as.numeric(t(mR))
   spot = numeric(N*D)
-  cp <- changePoints(vR, type = op$type, alpha = op$alpha, sscor = op$sscor, m = op$m, n = op$n)  
+  cp <- changePoints(vR, type = op$type, alpha = op$alpha, m = op$m, n = op$n)  
   for (i in 1:(N*D))
   {
     if (i > op$n) lastchange = max(which(cp + op$n < i)) else lastchange = 1
     lastchange = cp[lastchange]
-    spot[i] = sqrt((1/(i - lastchange+1))*switch(op$volest, 
-                                        bipower = rBPCov(vR[(lastchange+1):i]),
-                                        medrv = medRV(vR[(lastchange+1):i]),
-                                        rv = RV(vR[(lastchange+1):i])))
-  }
+    spot[i] = switch(op$volest, 
+                      bipower = sqrt((1/(i - lastchange+1))*(rBPCov(vR[(lastchange+1):i]))),
+                      medrv = sqrt((1/(i - lastchange+1))*(medRV(vR[(lastchange+1):i]))),
+                      rv = sqrt((1/(i - lastchange+1))*(RV(vR[(lastchange+1):i]))),
+                      sd = sd(vR[(lastchange+1):i]),
+                      tau = scaleTau2(vR[(lastchange+1):i]))
+  } 
   if (is.null(rdata)) 
   {
     spot <- matrix(spot, nrow = D, ncol = N, byrow = TRUE)
@@ -694,7 +698,7 @@ piecewise <- function(mR, rdata = NULL, options = list())
 # Detect points on which the volatility level changes
 # Input vR should be vector of returns
 # Returns vector of indices after which the volatility level in vR changed
-changePoints <- function(vR, type = "MDa", alpha = 0.005, sscor = FALSE, m = 40, n = 20)
+changePoints <- function(vR, type = "MDa", alpha = 0.005, m = 40, n = 20)
 {
   logR = log((vR - mean(vR))^2)
   L = length(logR)
@@ -708,9 +712,9 @@ changePoints <- function(vR, type = "MDa", alpha = 0.005, sscor = FALSE, m = 40,
       reference <- logR[(t - N + 1):(t - n)]
       testperiod <- logR[(t - n + 1):t]  
       if(switch(type,
-                MDa = MDtest(reference, testperiod, type = type, alpha = alpha, sscor = sscor),
-                MDb = MDtest(reference, testperiod, type = type, alpha = alpha, sscor = sscor),
-                DM = DMtest(reference, testperiod, alpha = alpha, sscor = sscor)
+                MDa = MDtest(reference, testperiod, type = type, alpha = alpha),
+                MDb = MDtest(reference, testperiod, type = type, alpha = alpha),
+                DM = DMtest(reference, testperiod, alpha = alpha)
         ))
       {
         points <- c(points, t - n)
@@ -724,7 +728,7 @@ changePoints <- function(vR, type = "MDa", alpha = 0.005, sscor = FALSE, m = 40,
 # Difference of medians test
 # See Fried (2012)
 # Returns TRUE if H0 is rejected
-DMtest <- function(x, y, alpha = 0.005, sscor = FALSE)
+DMtest <- function(x, y, alpha = 0.005)
 {
   m = length(x)
   n = length(y)
@@ -733,12 +737,6 @@ DMtest <- function(x, y, alpha = 0.005, sscor = FALSE)
   xcor = x - xmed
   ycor = y - ymed
   delta1 = ymed - xmed
-  if (sscor)
-  {
-    S1 = median(c(abs(x - xmed), abs(y - ymed)))
-    delta1 = delta1/S1
-    
-  }
   out <- density(c(xcor, ycor), kernel = "epanechnikov")
   fmed <- as.numeric(quantile(out, probs = 0.5))
   fmedvalue <- (out$y[max(which(out$x < fmed))] + out$y[max(which(out$x < fmed))+1])/2
@@ -749,7 +747,7 @@ DMtest <- function(x, y, alpha = 0.005, sscor = FALSE)
 # Median difference test
 # See Fried (2012)
 # Returns TRUE if H0 is rejected
-MDtest <- function(x, y, alpha = 0.005, type = "MDa", sscor = FALSE)
+MDtest <- function(x, y, alpha = 0.005, type = "MDa")
 {
   m = length(x)
   n = length(y)
@@ -757,21 +755,6 @@ MDtest <- function(x, y, alpha = 0.005, type = "MDa", sscor = FALSE)
   lambda = m/N
   yrep = rep(y, each = m)
   delta2 = median(yrep - x)
-  if (sscor)
-  {
-    absdif = numeric(0)
-    for (i in 1:(m-1))
-    {
-      absdif = c(absdif, abs(x[i] - x[(i+1):m]))
-    }
-    for (j in 1:(n-1))
-    {
-      absdif = c(absdif, abs(x[j] - x[(j+1):n]))
-    } 
-    S2 = median(absdif) 
-    delta2 = delta2/S2
-    
-  }
   if (type == "MDa")
   {
     z = rep(0, N)
