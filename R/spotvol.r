@@ -36,7 +36,7 @@
 #' 
 #' @docType package
 #' @name spotvolatility
-#' @import highfrequency FKF chron
+#' @import highfrequency FKF chron timeDate
 #' @importFrom robustbase scaleTau2
 #' @importFrom BMS quantile.density
 NULL
@@ -149,7 +149,7 @@ NULL
 #' One way to estimate \eqn{h}, is by using cross-validation. For each day in the sample, \eqn{h} is chosen
 #' as to minimize the Integrated Square Error, which is a function of \eqn{h}. However, this function often 
 #' has multiple local minima, or no minima at all (\eqn{h -> \Inf}). To ensure a reasonable optimum is reached,
-#' strict boundaries have to be imposed on #' \eqn{h}. These can be specified by \code{lower} and \code{upper}, 
+#' strict boundaries have to be imposed on \eqn{h}. These can be specified by \code{lower} and \code{upper}, 
 #' which by default are \eqn{0.1n^{-0.2}} and \eqn{n^{-0.2}} respectively, where \eqn{n} is the number of 
 #' observations in a day.
 #' 
@@ -411,7 +411,7 @@ stochper <- function(mR, rdata = NULL, options = list())
   N = ncol(mR)
   days = nrow(mR)
   
-  logr2 = log(mR^2)
+  logr2 = log((mR-mean(mR))^2)
   rvector = as.vector(t(logr2)) 
   lambda = (2*pi)/N;
   
