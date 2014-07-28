@@ -194,6 +194,9 @@ times (roughly equal to the total number of observations), so it is advised to u
 \code{alpha}, to avoid a lot of false positives. Default = \code{0.005}. \cr
 \code{volest} \tab String specifying the realized volatility estimator to be used in local windows.
 Possible values are \code{"bipower", "rv", "medrv"}. Default = \code{"bipower"}. \cr
+\code{online} \tab Boolean indicating whether estimations at a certain point \eqn{t} should be
+done online (using only information available at \eqn{t-1}), or ex post (using all
+observations between two change points). Default = \code{TRUE}.  \cr
 }
 Outputs (see 'Value' for a full description of each component):
 \itemize{
@@ -243,7 +246,7 @@ par(par.def)
 simdata <- matrix(sqrt(5/3)*rt(3000, df = 5), ncol = 500, byrow = TRUE)
 simdata <- c(1, 1, 1.5, 1.5, 2, 1)*simdata
 # the volatility of the simulated now changes at 1000, 2000 and 2500
-vol6 <- spotvol(simdata, method = "piecewise", m = 100, n  = 50)
+vol6 <- spotvol(simdata, method = "piecewise", m = 200, n  = 100, online = FALSE)
 plot(vol6)
 }
 \references{

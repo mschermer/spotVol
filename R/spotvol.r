@@ -169,6 +169,9 @@ NULL
 #' \code{alpha}, to avoid a lot of false positives. Default = \code{0.005}. \cr
 #' \code{volest} \tab String specifying the realized volatility estimator to be used in local windows.
 #' Possible values are \code{"bipower", "rv", "medrv"}. Default = \code{"bipower"}. \cr
+#' \code{online} \tab Boolean indicating whether estimations at a certain point \eqn{t} should be
+#' done online (using only information available at \eqn{t-1}), or ex post (using all
+#' observations between two change points). Default = \code{TRUE}.  \cr
 #' }
 #' Outputs (see 'Value' for a full description of each component):
 #' \itemize{
@@ -274,7 +277,7 @@ NULL
 #' simdata <- matrix(sqrt(5/3)*rt(3000, df = 5), ncol = 500, byrow = TRUE)
 #' simdata <- c(1, 1, 1.5, 1.5, 2, 1)*simdata
 #' # the volatility of the simulated now changes at 1000, 2000 and 2500 
-#' vol6 <- spotvol(simdata, method = "piecewise", m = 100, n  = 50)
+#' vol6 <- spotvol(simdata, method = "piecewise", m = 200, n  = 100, online = FALSE)
 #' plot(vol6)
 #'
 #' @template references
@@ -315,7 +318,7 @@ spotvol <- function(data, method = "detper", ..., on = "minutes", k = 5,
   } else stop("Input data has to consist of either of the following: 
             1. An xts object containing price data
             2. A matrix containing return data")
-  mR[is.na(mR)] = 0 # is this needed?
+#  mR[is.na(mR)] = 0 # is this needed?
 
   options <- list(...)
   out = switch(method, 
@@ -343,7 +346,7 @@ detper <- function(mR, rdata = NULL, options = list())
     estimdailyvol = switch(op$dailyvol, 
                            bipower = rBPCov(mR), 
                            medrv = medRV(mR), 
-                           rv = RV(mR))
+                           rv = rCov(mR))
   } else 
   {
     if (is.null(rdata))
@@ -351,13 +354,13 @@ detper <- function(mR, rdata = NULL, options = list())
     estimdailyvol = switch(op$dailyvol, 
                              bipower = apply(mR, 1, "rBPCov"),
                              medrv = apply(mR, 1, "medRV"),
-                             rv = apply(mR, 1, "RV"))
+                             rv = apply(mR, 1, "rCov"))
     } else
     {
     estimdailyvol = switch(op$dailyvol, 
                               bipower = apply.daily(rdata, rBPCov),
                               medrv = apply.daily(rdata, medRV),
-                              rv = apply.daily(rdata, RV))
+                              rv = apply.daily(rdata, rCov))
     dates = time(estimdailyvol)
     }
   }  
@@ -380,7 +383,7 @@ detper <- function(mR, rdata = NULL, options = list())
     estimdailyvol = switch(op$dailyvol, 
                             bipower = apply(mfilteredR, 1, "rBPCov"),
                             medrv = apply(mfilteredR, 1, "medRV"), 
-                            rv = apply(mfilteredR, 1, "RV"))
+                            rv = apply(mfilteredR, 1, "rCov"))
     spot = rep(sqrt(as.numeric(estimdailyvol) * (1/M)), each = M) * rep(estimperiodicvol, cDays)
     if (is.null(rdata)) 
     {
@@ -410,8 +413,8 @@ stochper <- function(mR, rdata = NULL, options = list())
   
   N = ncol(mR)
   days = nrow(mR)
-  
-  logr2 = log((mR-mean(mR))^2)
+  mR[mR == 0] = NA
+  logr2 = log(mR^2)
   rvector = as.vector(t(logr2)) 
   lambda = (2*pi)/N;
   
@@ -664,24 +667,38 @@ ISE <- function(h, x, delta = 300, type = "gaussian")
 piecewise <- function(mR, rdata = NULL, options = list())
 {
   # default options, replace if user-specified
-  op <- list(type = "MDa", m = 40, n = 20, alpha = 0.005, volest = "bipower")
+  op <- list(type = "MDa", m = 40, n = 20, alpha = 0.005, volest = "bipower", online = TRUE)
   op[names(options)] <- options
   
   N = ncol(mR)
   D = nrow(mR)
   vR = as.numeric(t(mR))
-  spot = numeric(N*D)
+  spot = rep(NA, N*D)
   cp <- changePoints(vR, type = op$type, alpha = op$alpha, m = op$m, n = op$n)  
   for (i in 1:(N*D))
   {
-    if (i > op$n) lastchange = max(which(cp + op$n < i)) else lastchange = 1
-    lastchange = cp[lastchange]
-    spot[i] = switch(op$volest, 
-                      bipower = sqrt((1/(i - lastchange+1))*(rBPCov(vR[(lastchange+1):i]))),
-                      medrv = sqrt((1/(i - lastchange+1))*(medRV(vR[(lastchange+1):i]))),
-                      rv = sqrt((1/(i - lastchange+1))*(RV(vR[(lastchange+1):i]))),
-                      sd = sd(vR[(lastchange+1):i]),
-                      tau = scaleTau2(vR[(lastchange+1):i]))
+    if (op$online)
+    {
+      if (i > op$n) lastchange = max(which(cp + op$n < i)) else lastchange = 1
+      lastchange = cp[lastchange]
+      spot[i] = switch(op$volest, 
+                        bipower = sqrt((1/(i - lastchange+1))*(rBPCov(vR[(lastchange+1):i]))),
+                        medrv = sqrt((1/(i - lastchange+1))*(medRV(vR[(lastchange+1):i]))),
+                        rv = sqrt((1/(i - lastchange+1))*(rCov(vR[(lastchange+1):i]))),
+                        sd = sd(vR[(lastchange+1):i]),
+                        tau = scaleTau2(vR[(lastchange+1):i]))
+    } else {
+      from = cp[max(which(cp < i))]
+      to = min(c(N*D, cp[which(cp >= i)]))
+      len = to - from
+      if (len < 1) print(to)
+      spot[i] = switch(op$volest, 
+                       bipower = sqrt((1/len)*(rBPCov(vR[from:to]))),
+                       medrv = sqrt((1/len)*(medRV(vR[from:to]))),
+                       rv = sqrt((1/len)*(rCov(vR[from:to]))),
+                       sd = sd(vR[from:to]),
+                       tau = scaleTau2(vR[from:to]))
+    }
   } 
   if (is.null(rdata)) 
   {
@@ -705,8 +722,9 @@ changePoints <- function(vR, type = "MDa", alpha = 0.005, m = 40, n = 20)
   points = 0
   np = length(points)
   N = n + m
+  cat("Detecting change points...\n")
   for (t in 1:L)
-  {
+  { 
     if (t - points[np] >= N)
     {
       reference <- logR[(t - N + 1):(t - n)]
@@ -717,8 +735,9 @@ changePoints <- function(vR, type = "MDa", alpha = 0.005, m = 40, n = 20)
                 DM = DMtest(reference, testperiod, alpha = alpha)
         ))
       {
-        points <- c(points, t - n)
+        points <- c(points, t - n)     
         np = np + 1
+        cat(paste("Change detected at observation", points[np], "...\n"))
       }    
     }
   }
