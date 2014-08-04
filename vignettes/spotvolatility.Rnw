@@ -2,10 +2,19 @@
 %\VignetteEngine{knitr}
 
 \documentclass{article}
-
+<<setup, include=FALSE>>=
+options(width=60)
+knit_hooks$set(crop=function(before, options, envir){
+if (before) par(mar=c(2,2,1,1))
+})
+@
+\pagenumbering{gobble}
 \begin{document}
 
-\title{Estimating spot volatility in R:\\ The spotvolatility package}
+\title{
+%\flushleft{\textbf{Appendix: R package documentation}}\\[3ex] 
+\center{Estimating spot volatility in R:\\ 
+The spotvolatility package}}
 \author{Maarten Schermer}
 \date{\today}
 
@@ -13,6 +22,11 @@
 
 \section{General usage}
 The \texttt{spotvolatility} package offers several methods to estimate spot volatility and its intraday seasonality, using high-frequency data. It is an extension of the function \texttt{spotvol} in the \texttt{highfrequency} package. That function is included as one of the methods in this package, and multiple other spot volatility estimation methods from recent academic literature have been added.\\[2ex]
+To install the package:
+<<message=FALSE>>=
+library(devtools)
+install_github("mschermer/spotVol")
+@
 The spot volatility $\sigma_{t,n}$ can be described as the the volatility of returns on a certain moment $n$ during day $t$. These returns $r_{t,n}$ are commonly modeled as 
 \begin{equation} \label{eq:returns}
 r_{t,n} = \sigma_{t,n}\varepsilon_{t,n},
@@ -25,14 +39,14 @@ out <- spotvol(sample_prices_5min)
 class(out)
 sigma_hat <- out$spot
 @
-\subsection{Input data: prices or returns}
+\subsection{Input data: prices or returns} \label{input}
 The \texttt{spotvol} function accepts two sorts of input:
 \begin{enumerate}
 \item An \texttt{xts} object containing price data.
 \item A \texttt{matrix} containing return data.
 \end{enumerate}
 The first can be used for raw price data, i.e. from the NYSE TAQ database. The \texttt{highfrequency} package offers several methods to process data files into \texttt{xts} format. The \texttt{spotvol} function will then aggregate this price data to the frequency specified by the user and calculate the return series.
-<<>>=
+<<tidy=TRUE>>=
 str(sample_prices_5min)
 out <- spotvol(sample_prices_5min)
 @
@@ -48,6 +62,110 @@ str(sample_returns_5min)
 out <- spotvol(sample_returns_5min)
 @
 \subsection{Market opening times and time zones}
-
+Working with \texttt{xts} objects means that every observation in your data should have a timestamp. This is convenient, but can also pose some problems (e.g. with timezones). The \texttt{spotvol} function does not require the data to be timestamped: you can also supply raw return data in matrix form (see \ref{input}).\\[2ex]
+Market opening and closing times can be specified by the arguments \texttt{marketopen} and \texttt{marketclose}. They should be entered in 24h format and in the timezone specified by \texttt{tz}, which should also be the timezone of your \texttt{xts} data. If your \texttt{xts} object does not have a timezone attribute specified, it will be assigned value \texttt{tz}. Note that all of your data must be in the same timezone. Problems can arise when using a daylight saving dependent timezone, such as CET, which changes to CEST during summer. It is advised to use a timezone which is invariant to daylight saving, such as GMT/UTC.\\[2ex]
+The time entered as \texttt{marketopen} should always be before \texttt{marketclose}. This can be a problem in case of 24h data, which lacks open and close times, or the opening time would be the same as the closing time. As the \texttt{spotvol} function processes the data on a daily basis, some problems arise when a 24h-period of data spans multiple days. There are two ways around this: either have your data always start at 0:00:00, or avoid time issues by entering your data as a \texttt{matrix}.
+\subsection{Method specific parameters}
+The \texttt{spotvol} function offers several methods to estimate the spot volatility. These are all listed in the help pages of the function and package. The user can specify the method to be used with the \texttt{method} argument, which accepts the following values:
+\begin{itemize}
+\item \texttt{"detper"} (default)
+\item \texttt{"stochper"}
+\item \texttt{"kernel"}
+\item \texttt{"piecewise"}
+\end{itemize}
+Each of these has different parameters to be specified by the user. These can all be entered as arguments to the \texttt{spotvol} function, although they will only be accepted if they are actually used by the specified method. The 'Details' section of the \texttt{spotvol} help page lists which parameters are used by each method. It is not required to specify all parameters; the function will even work if none are entered, by using default values.
+\subsection{Output}
+The \texttt{spotvol} function returns an object of the \texttt{spotvol} class. This is a list of which the contents depend on the used method. In any case, it includes the variable \texttt{spot}, which contains all spot volatility estimates as an \texttt{xts} or \texttt{matrix} object (depending on the input). The following example shows the different outputs for methods \texttt{"detper"} and \texttt{"stochper"}:
+<<results='hide'>>=
+out1 <- spotvol(sample_prices_5min, method = "detper")
+out2 <- spotvol(sample_prices_5min, method = "stochper")
+@
+<<>>=
+names(out1)
+names(out2)
+@
+\subsection{Plotting}
+To get a quick overview of the output, the \texttt{plot} function can be called on \texttt{spotvol} objects. The S3 method \texttt{plot.spotvol} has been implemented to show the spot volatility estimates, as well as any other components of the \texttt{spotvol} object that can be visually represented, depending on the used method. An additional argument that can be passed to \texttt{plot.spotvol} is \texttt{length}, which can limit the amount of data points to be plotted. Examples are shown in section \ref{methods}.
+\section{Methods} \label{methods}
+Each method implemented in the \texttt{spotvolatility} package has been proposed in an academic paper. For detailed descriptions, refer to these papers written by the original authors of the methods. References can be found at the end of this document or in the help page of this package, where you can also find a short overview of each method. In this section, we show some examples for each method.
+\subsection{Deterministic periodicity - \texttt{"detper"}}
+This is the default method. The spot volatility is decomposed into a deterministic periodic factor $f_{i}$ (identical for every day in the sample) and a daily factor $s_{t}$ (identical for all observations within a day). Both components are then estimated separately. For more details, see Taylor and Xu (1997) and Andersen and Bollerslev (1997). The jump robust versions by Boudt et al. (2011) have also been implemented.\\[2ex]
+First, we can use the \texttt{plot} function to get a quick view of the results. This will call the \texttt{plot.spotvolatility} function, which automatically shows all relevant results contained in the \texttt{spotvol} object. When estimated by the deterministic method, it plots the general spot volatility estimates in the top panel, and the intraday periodicity pattern and daily volatilies in the bottom panels:
+<<>>=
+vol_detper <- spotvol(sample_returns_5min, method = "detper")
+plot(vol_detper)
+@
+Now, to get a better look at the spot volatility estimates, we need to zoom in. This time, we only plot the first 3 days of the spot volatility. Recall that since we entered the input as a matrix, the output \texttt{vol\_detper\$spot} is also a matrix, with each row representing 1 day of estimates:
+<<crop=TRUE,fig.height=4>>=
+plot(as.numeric(t(vol_detper$spot[1:3,])), type = "l")
+@
+Now, it is easier to see how this method works. The estimated periodicity pattern (the second panel in the previous plot) is repeated every day, and it is multiplied by the estimate of the daily volatility (the third panel in the previous plot). To get the plot to zoom in, we also could have run
+<<eval=FALSE>>=
+plot(vol_detper, length = 3*288)
+@
+\subsection{Stochastic periodicity - \texttt{"stochper"}}
+This method by Beltratti and Morana (2001) assumes the periodicity factor to be stochastic. The spot volatility estimation is split into four components: a random walk, an autoregressive process, a stochastic cyclical process and a deterministic cyclical process. The model is estimated using a quasi-maximum likelihood method based on the Kalman Filter. The package FKF is used to apply the Kalman filter. In addition to the spot volatility estimates, all parameter estimates are returned.\\[2ex]
+Like most stochastic volatility models, this model can be difficult to estimate. Optimization can take a long time, and results can depend on the initial values used in the estimation of the parameters. Therefore, these values can be specified by the user, as well as optimization restrictions:
+<<tidy=TRUE>>=
+init <- list(sigma = 0.03, sigma_mu = 0.005, sigma_h = 0.007, sigma_k = 0.06, phi = 0.194, rho = 0.986, mu = c(1.87,-0.42), delta_c = c(0.25, -0.05, -0.2, 0.13, 0.02), delta_s = c(-1.2, 0.11, 0.26, -0.03, 0.08))
+vol_stochper <- spotvol(sample_returns_5min, method = "stochper", init = init, control = list(maxit = 20))
+@
+The \texttt{control} argument will be passed down to \texttt{optim}, so it will accept all options listed in \texttt{?optim}. We can now compare the spot volatility estimates of the stochastic method to those calculated previously by the deterministic model:
+<<crop=TRUE,fig.height=4>>=
+plot(as.numeric(t(vol_detper$spot[1:3,])), type = "l")
+lines(as.numeric(t(vol_stochper$spot[1:3,])), col = "red")
+@
+\subsection{Nonparametric filtering - \texttt{"kernel"}}
+This method by Kristensen (2010) filters the spot volatility in a nonparametric way by applying kernel weights to the standard realized volatility estimator. Different kernels and bandwidths can be used to focus on specific characteristics of the volatility process.\\[2ex]
+Estimation results heavily depend on the bandwidth parameter $h$, so it is important that this parameter is well chosen. However, it is difficult to come up with a method that determines the optimal bandwidth for any kind of data or kernel that can be used. Although some estimation methods are provided, it is advised that you specify $h$ yourself, or make sure that the estimation results are appropiate.\\[2ex]
+An easy way to get a quick estimate of $h$ is to use the R function \texttt{bw.nrd0}. The kernels will be calculated on a daily basis using the time index of each data point. Therefore, the bandwidth should be calculated from the same data, i.e. a vector of intraday times, for example in seconds. For data consisting of 5-minute returns, this would be
+<<>>=
+h1 = bw.nrd0((1:nrow(sample_returns_5min))*(5*60))
+vol3 <- spotvol(sample_returns_5min, method = "kernel", h = h1)
+@
+Another quick estimator has been implemented, one that multiplies the above simple estimate by the quarticity of the returns on each day. It can be used by the option \texttt{est = "quarticity"}. The quarticity is a measure of the variance of the spot volatility. Days with higher quarticity will be assigned a larger bandwidth, to reduce the influence of single large returns. When using the method "kernel", in addition to the spot volatility estimates, all used values of the bandwidth $h$ are returned, so we can compare them to the quarticity values:
+<<crop=TRUE,fig.height=3,tidy=TRUE>>=
+quarticity = (nrow(sample_returns_5min)/3)*rowSums(sample_returns_5min^4)
+vol4 <- spotvol(sample_returns_5min, method = "kernel", est = "quarticity")
+plot(log(quarticity), vol4$par$h)
+@
+One way to estimate $h$, is by using cross-validation. For each day in the sample, $h$ is chosen as to minimize the Integrated Square Error, which is a function of $h$. However, this function often has multiple local minima, or no minima at all ($h \rightarrow \infty$). To ensure a reasonable optimum is reached, strict boundaries have to be imposed on $h$. These can be specified by lower and upper, which by default are $0.1n^{-0.2}$ and $n^{-0.2}$ respectively, where $n$ is the number of observations in a day. Crossvalidation can be used by specifying the option \texttt{est = "cv"}:
+<<results='hide'>>=
+vol5 <- spotvol(sample_returns_5min, method = "kernel", est = "cv")
+@
+Now, we can easily compare the estimates of each bandwidth selection method by adding them to the same plot (\texttt{plot.spotvol} does not show any additional plots besides the spot volatility estimates for this method):
+<<crop=TRUE,fig.height=4,tidy=TRUE>>=
+plot(vol3, length = 2880)
+lines(as.numeric(t(vol4$spot))[1:2880], col="red")
+lines(as.numeric(t(vol5$spot))[1:2880], col="blue")
+legend("topright", c("h = simple estimate", "h = quarticity corrected",
+  "h = crossvalidated"), col = c("black", "red", "blue"), lty=1)
+@
+This plot compares the spot volatility estimates of the first 10 days. The simple estimator usually yields the smallest bandwidth, which makes it more sensitive to shocks. On the 2nd and 6th day (observations 289-576 and 1441-1728 in the plot, respectively), the crossvalidation estimate has hit its upper boundary, meaning the minimization problem had no feasible solution on those days.
+\subsection{Piecewise constant volatility - \texttt{"piecewise"}}
+This nonparametric method by Fried (2012) assumes the volatility to be piecewise constant over local windows. Robust two-sample tests are applied to detect changes in variability between subsequent windows. The spot volatility can then be estimated by evaluating regular realized volatility estimators within each local window.\\[2ex]
+An example from Fried (2012) consists of simulated data from the student's t-distribution. The volatility is equal to $\sqrt(5/3)$ for the first 1000 observations, $1.5\sqrt(5/3)$ from 1001 to 2000, $2\sqrt(5/3)$ from 2001 to 2500, and $\sqrt(5/3)$ again for the last 500 observations. We organize these simulated values in a matrix containing 500 observations per row:
+<<tidy=TRUE>>=
+simdata <- matrix(sqrt(5/3)*rt(3000, df = 5), ncol = 500, byrow = TRUE)
+simdata <- c(1, 1, 1.5, 1.5, 2, 1)*simdata
+@
+When we apply the piecewise constant volatility method the resulting \texttt{spotvol} object will contain both the spot volatility estimates and the detected change points in the volatility level. When plotting it, these change points will be visualized:
+<<crop=TRUE,fig.height=3,tidy=TRUE>>=
+vol6 <- spotvol(simdata, method = "piecewise", m = 200, n = 100, online = FALSE)
+plot(vol6)
+@
+Note that these results depend on randomly generated values, which can vary when you repeat this example. Here, we applied ex post estimation, using all observations between two change points to estimate the volatility. Another option is to apply online estimation, where only observations up to point $t$ are used in the estimation of the volatility at point $t$. This results in slowly changing estimates, depending on the lengths $m$ and $n$ of the reference and test windows:
+<<crop=TRUE,fig.height=3,tidy=TRUE>>=
+vol7 <- spotvol(simdata, method = "piecewise", m = 200, n = 100, online = TRUE, volest = "tau")
+plot(vol7)
+@
+This can lead to a few unreliable estimates after each change point, when only a couple of observations are available. We also used a different estimator of the volatility for this plot. It can be specified by the option \texttt{volest}.
+\section*{References}
+Andersen, T. G. and T. Bollerslev (1997). Intraday periodicity and volatility persistence in financial markets. Journal of Empirical Finance 4, 115-158.\\[2ex]
+Beltratti, A. and C. Morana (2001). Deterministic and stochastic methods for estimation of intraday seasonal components with high frequency data. Economic Notes 30, 205-234.\\[2ex]
+Boudt K., Croux C. and Laurent S. (2011). Robust estimation of intraweek periodicity in volatility and jump detection. Journal of Empirical Finance 18, 353-367.\\[2ex]
+Fried, Roland (2012). On the online estimation of local constant volatilities. Computational Statistics and Data Analysis 56, 3080-3090.\\[2ex]
+Kristensen, Dennis (2010). Nonparametric filtering of the realized spot volatility: A kernel-based approach. Econometric Theory 26, 60-93.\\[2ex]
+Taylor, S. J. and X. Xu (1997). The incremental volatility information in one million foreign exchange quotations. Journal of Empirical Finance 4, 317-340.
 
 \end{document}
