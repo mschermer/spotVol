@@ -3,7 +3,7 @@
 \name{sample_returns_5min}
 \alias{sample_returns_5min}
 \title{Sample returns data}
-\format{xts}
+\format{matrix}
 \usage{
 data(sample_returns_5min)
 }

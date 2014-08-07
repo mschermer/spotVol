@@ -846,6 +846,52 @@ plot.spotvol <- function(sv, length = NULL)
   } 
 }
 
+intraday_regressors <- function(D, N = 288, dummies = FALSE, P1 = 5, P2 = 5)
+{
+  vi = rep(c(1:N), each = D)
+  X = c()
+  if (!dummies) {
+    if (P1 > 0) {
+      for (j in 1:P1) {
+        X = cbind(X, cos(2 * pi * j * vi/N))
+      }
+    }
+    M1 = (N + 1)/2
+    M2 = (2 * N^2 + 3 * N + 1)/6
+    ADD = (vi/M1)
+    X = cbind(X, ADD)
+    ADD = (vi^2/M2)
+    X = cbind(X, ADD)
+    if (P2 > 0) {
+      ADD = c()
+      for (j in 1:P2) {
+        ADD = cbind(ADD, sin(2 * pi * j * vi/N))
+      }
+    }
+    X = cbind(X, ADD)
+    opening = vi - 0
+    stdopening = (vi - 0)/80
+    almond1_opening = (1 - (stdopening)^3)
+    almond2_opening = (1 - (stdopening)^2) * (opening)
+    almond3_opening = (1 - (stdopening)) * (opening^2)
+    X = cbind(X, almond1_opening, almond2_opening, almond3_opening)
+    closing = max(vi) - vi
+    stdclosing = (max(vi) - vi)/max(vi)
+    almond1_closing = (1 - (stdclosing)^3)
+    almond2_closing = (1 - (stdclosing)^2) * (closing)
+    almond3_closing = (1 - (stdclosing)) * (closing^2)
+    X = cbind(X, almond1_closing, almond2_closing, almond3_closing)
+  } else {
+    for (d in 1:N) {
+      dummy = rep(0, N)
+      dummy[d] = 1
+      dummy = rep(dummy, each = D)
+      X = cbind(X, dummy)
+    }
+  }
+  return(X)
+}
+
 
 ### auxiliary internal functions copied from highfrequency package
 
@@ -914,47 +960,7 @@ diurnal =
         firststepresids = log(abs(vstddata)) - c - log(rep(seas, 
                                                            each = cDays))
       }
-      X = c()
-      if (!dummies) {
-        if (P1 > 0) {
-          for (j in 1:P1) {
-            X = cbind(X, cos(2 * pi * j * vi/intraT))
-          }
-        }
-        M1 = (intraT + 1)/2
-        M2 = (2 * intraT^2 + 3 * intraT + 1)/6
-        ADD = (vi/M1)
-        X = cbind(X, ADD)
-        ADD = (vi^2/M2)
-        X = cbind(X, ADD)
-        if (P2 > 0) {
-          ADD = c()
-          for (j in 1:P2) {
-            ADD = cbind(ADD, sin(2 * pi * j * vi/intraT))
-          }
-        }
-        X = cbind(X, ADD)
-        opening = vi - 0
-        stdopening = (vi - 0)/80
-        almond1_opening = (1 - (stdopening)^3)
-        almond2_opening = (1 - (stdopening)^2) * (opening)
-        almond3_opening = (1 - (stdopening)) * (opening^2)
-        X = cbind(X, almond1_opening, almond2_opening, almond3_opening)
-        closing = max(vi) - vi
-        stdclosing = (max(vi) - vi)/max(vi)
-        almond1_closing = (1 - (stdclosing)^3)
-        almond2_closing = (1 - (stdclosing)^2) * (closing)
-        almond3_closing = (1 - (stdclosing)) * (closing^2)
-        X = cbind(X, almond1_closing, almond2_closing, almond3_closing)
-      }
-      else {
-        for (d in 1:intraT) {
-          dummy = rep(0, intraT)
-          dummy[d] = 1
-          dummy = rep(dummy, each = cDays)
-          X = cbind(X, dummy)
-        }
-      }
+      X = intraday_regressors(cDays, N = intraT, dummies = dummies, P1 = P1, P2 = P2)
       selection = c(1:nobs)[vstddata != 0]
       vstddata = vstddata[selection]
       X = X[selection, ]
@@ -1099,5 +1105,5 @@ NULL
 #' @docType data
 #' @name sample_returns_5min
 #' @usage data(sample_returns_5min)
-#' @format xts
+#' @format matrix
 NULL
