@@ -36,7 +36,7 @@
 #' 
 #' @docType package
 #' @name spotvolatility
-#' @import highfrequency FKF chron timeDate
+#' @import highfrequency FKF chron timeDate rugarch
 #' @importFrom robustbase scaleTau2
 #' @importFrom BMS quantile.density
 NULL
@@ -325,7 +325,8 @@ spotvol <- function(data, method = "detper", ..., on = "minutes", k = 5,
            detper = detper(mR, rdata = rdata, options = options), 
            stochper = stochper(mR, rdata = rdata, options = options),
            kernel = kernelestim(mR, rdata = rdata, delta, options = options),
-           piecewise = piecewise(mR, rdata = rdata, options = options))  
+           piecewise = piecewise(mR, rdata = rdata, options = options),
+           garch = garch_s(mR, rdata = rdata, options = options))  
   return(out)
 }
 
@@ -799,6 +800,34 @@ MDtest <- function(x, y, alpha = 0.005, type = "MDa")
   return(abs(test) > qnorm(1 - alpha/2))
 }
 
+# GARCH with seasonality (external regressors)
+garch_s <- function(mR, rdata = NULL, options = list())
+{
+  # default options, replace if user-specified
+  op <- list(P1 = 5, P2 = 5)
+  op[names(options)] <- options
+  
+  D = nrow(mR)
+  N = ncol(mR)
+  
+  X <- intraday_regressors(D, N = N, order = 2, almond = FALSE, P1 = op$P1, P2 = op$P2)
+  spec <- ugarchspec(variance.model = list(model = "eGARCH", external.regressors = X),
+                     mean.model = list(include.mean = FALSE))
+  if (is.null(rdata))
+  {
+    fit <- ugarchfit(spec = spec, data = as.numeric(t(mR)))
+    spot <- as.numeric(sigma(fit))
+  }
+  else {
+    fit <- ugarchfit(spec = spec, data = rdata)
+    spot <- sigma(fit)
+  }
+  out <- list(spot = spot)
+  class(out) <- "spotvol"
+  return(out)
+}
+    
+
 #' @export
 plot.spotvol <- function(sv, length = NULL)
 {
@@ -846,9 +875,14 @@ plot.spotvol <- function(sv, length = NULL)
   } 
 }
 
-intraday_regressors <- function(D, N = 288, dummies = FALSE, P1 = 5, P2 = 5)
-{
-  vi = rep(c(1:N), each = D)
+intraday_regressors <- function(D, N = 288, order = 1, almond = TRUE, dummies = FALSE, P1 = 5, P2 = 5)
+{  
+  if (order == 1) 
+  {
+    vi = rep(c(1:N), each = D)
+  } else {
+    vi = rep(c(1:N), D)
+  }
   X = c()
   if (!dummies) {
     if (P1 > 0) {
@@ -869,18 +903,21 @@ intraday_regressors <- function(D, N = 288, dummies = FALSE, P1 = 5, P2 = 5)
       }
     }
     X = cbind(X, ADD)
-    opening = vi - 0
-    stdopening = (vi - 0)/80
-    almond1_opening = (1 - (stdopening)^3)
-    almond2_opening = (1 - (stdopening)^2) * (opening)
-    almond3_opening = (1 - (stdopening)) * (opening^2)
-    X = cbind(X, almond1_opening, almond2_opening, almond3_opening)
-    closing = max(vi) - vi
-    stdclosing = (max(vi) - vi)/max(vi)
-    almond1_closing = (1 - (stdclosing)^3)
-    almond2_closing = (1 - (stdclosing)^2) * (closing)
-    almond3_closing = (1 - (stdclosing)) * (closing^2)
-    X = cbind(X, almond1_closing, almond2_closing, almond3_closing)
+    if (almond == TRUE)
+    {
+      opening = vi - 0
+      stdopening = (vi - 0)/80
+      almond1_opening = (1 - (stdopening)^3)
+      almond2_opening = (1 - (stdopening)^2) * (opening)
+      almond3_opening = (1 - (stdopening)) * (opening^2)
+      X = cbind(X, almond1_opening, almond2_opening, almond3_opening)
+      closing = max(vi) - vi
+      stdclosing = (max(vi) - vi)/max(vi)
+      almond1_closing = (1 - (stdclosing)^3)
+      almond2_closing = (1 - (stdclosing)^2) * (closing)
+      almond3_closing = (1 - (stdclosing)) * (closing^2)
+      X = cbind(X, almond1_closing, almond2_closing, almond3_closing)
+    }
   } else {
     for (d in 1:N) {
       dummy = rep(0, N)
