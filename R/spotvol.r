@@ -279,6 +279,10 @@ NULL
 #' # the volatility of the simulated now changes at 1000, 2000 and 2500 
 #' vol6 <- spotvol(simdata, method = "piecewise", m = 200, n  = 100, online = FALSE)
 #' plot(vol6)
+#' 
+#' # GARCH(1,1) model with external regressors
+#' vol7 <- spotvol(sample_returns_5min, method = "garch")
+#' plot(vol7)
 #'
 #' @template references
 spotvol <- function(data, method = "detper", ..., on = "minutes", k = 5,
@@ -804,25 +808,25 @@ MDtest <- function(x, y, alpha = 0.005, type = "MDa")
 garch_s <- function(mR, rdata = NULL, options = list())
 {
   # default options, replace if user-specified
-  op <- list(P1 = 5, P2 = 5)
+  op <- list(model = "eGARCH", P1 = 5, P2 = 5)
   op[names(options)] <- options
   
   D = nrow(mR)
   N = ncol(mR)
-  
+  mR = mR - mean(mR)
   X <- intraday_regressors(D, N = N, order = 2, almond = FALSE, P1 = op$P1, P2 = op$P2)
-  spec <- ugarchspec(variance.model = list(model = "eGARCH", external.regressors = X),
+  spec <- ugarchspec(variance.model = list(model = op$model, external.regressors = X),
                      mean.model = list(include.mean = FALSE))
   if (is.null(rdata))
   {
-    fit <- ugarchfit(spec = spec, data = as.numeric(t(mR)))
+    fit <- ugarchfit(spec = spec, data = as.numeric(t(mR)), solver = "nloptr")
     spot <- as.numeric(sigma(fit))
   }
   else {
-    fit <- ugarchfit(spec = spec, data = rdata)
+    fit <- ugarchfit(spec = spec, data = rdata, solver = "nloptr")
     spot <- sigma(fit)
   }
-  out <- list(spot = spot)
+  out <- list(spot = spot, ugarchfit = fit)
   class(out) <- "spotvol"
   return(out)
 }

@@ -248,6 +248,10 @@ simdata <- c(1, 1, 1.5, 1.5, 2, 1)*simdata
 # the volatility of the simulated now changes at 1000, 2000 and 2500
 vol6 <- spotvol(simdata, method = "piecewise", m = 200, n  = 100, online = FALSE)
 plot(vol6)
+
+# GARCH(1,1) model with external regressors
+vol7 <- spotvol(sample_returns_5min, method = "garch")
+plot(vol7)
 }
 \references{
 Andersen, T. G. and T. Bollerslev (1997). Intraday periodicity and volatility
