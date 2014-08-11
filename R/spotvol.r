@@ -19,7 +19,7 @@
 #' The spot volatility estimation is split into four components: a random walk, an autoregressive
 #' process, a stochastic cyclical process and a deterministic cyclical process. The model is 
 #' estimated using a quasi-maximum likelihood method based on the Kalman Filter. The package
-#' \code{FKF} is used to apply the Kalman filter.
+#' \code{\link[=fkf]{FKF}} is used to apply the Kalman filter.
 #' 
 #' @section Nonparametric filtering:
 #' This method by Kristensen (2010) filters the spot volatility in a nonparametric way by applying
@@ -99,7 +99,7 @@ NULL
 #' phi = 0.2, rho = 0.98, mu = c(2, -0.5), delta_c = rep(0, max(1,P1)), delta_s = rep(0, max(1,P2)))}.
 #' See Beltratti & Morana (2001) for a definition of each parameter. \code{init} can contain any number of
 #' these parameters. For parameters not specified in \code{init}, the default initial value will be used.\cr
-#' \code{control} \tab A list of options to be passed down to \code{optim}.
+#' \code{control} \tab A list of options to be passed down to \code{\link{optim}}.
 #' }
 #' Outputs (see 'Value' for a full description of each component):
 #' \itemize{
@@ -110,8 +110,8 @@ NULL
 #' The spot volatility estimation is split into four components: a random walk, an autoregressive
 #' process, a stochastic cyclical process and a deterministic cyclical process. The model is 
 #' estimated using a quasi-maximum likelihood method based on the Kalman Filter. The package
-#' \code{FKF} is used to apply the Kalman filter. In addition to the spot volatility estimates,
-#' all parameter estimates are returned.
+#' \code{\link[=fkf]{FKF}} is used to apply the Kalman filter. In addition to the spot volatility 
+#' estimates, all parameter estimates are returned.
 #' 
 #' \strong{Nonparametric filtering (\code{"kernel"})}
 #' 
@@ -186,7 +186,30 @@ NULL
 #' Along with the spot volatility estimates, this method will return the detected change points in the volatility
 #' level. When plotting a \code{spotvol} object containing \code{cp}, these change points will be visualized.
 #' 
-#' @param data Either an \code{xts} object, containing price data, or a \code{matrix} containing returns.  
+#' \strong{GARCH models with intraday seasonality  (\code{"garch"})}
+#' 
+#' Parameters:
+#' \tabular{ll}{
+#' \code{model} \tab String specifying the type of test to be used. Options include 
+#' \code{"sGARCH", "eGARCH"}. See \code{\link{ugarchspec}} in the \code{\link{rugarch}} package. Default = \code{"eGARCH"}. \cr
+#' \code{P1} \tab A positive integer corresponding to the number of cosinus terms
+#' used in the flexible Fourier specification of the periodicity function. 
+#' Default = 5. \cr
+#' \code{P2} \tab Same as \code{P1}, but for the sinus terms. Default = 5.\cr
+#' }
+#' Outputs (see 'Value' for a full description of each component):
+#' \itemize{
+#' \item{\code{spot}}
+#' \item{\code{ugarchfit}}
+#' }
+#' This method generates the external regressors needed to model the intraday seasonality with a 
+#' Flexible Fourier form. The \code{\link{rugarch}} package is then employed to estimate the specified
+#' GARCH(1,1) model.
+#' 
+#' Along with the spot volatility estimates, this method will return the \code{\link{ugarchfit}}
+#' object used by the \code{\link{rugarch}} package.
+#' 
+#' @param data Either an \code{\link{xts}} object, containing price data, or a \code{matrix} containing returns.  
 #' For price data, irregularly spaced observations are allowed. They will be aggregated to the level 
 #' specified by parameters \code{on} and \code{k}. For return data, the observations are assumed to be
 #' equispaced, with the time between them specified by \code{on} and \code{k}. Return data should be
@@ -240,6 +263,10 @@ NULL
 #' A vector containing the change points in the volatility, i.e. the observation indices after which the volatility level
 #' changed, according to the applied tests. The vector starts with a 0. Methods that provide this output: \code{"piecewise"}. 
 #' 
+#' \code{ugarchfit}
+#' 
+#' A \code{\link{ugarchfit}} object, as used by the \code{\link{rugarch}} package, containing all output from fitting
+#' the GARCH model to the data. Methods that provide this output: \code{"garch"}.
 #' 
 #' @export
 #' @examples
@@ -280,9 +307,12 @@ NULL
 #' vol6 <- spotvol(simdata, method = "piecewise", m = 200, n  = 100, online = FALSE)
 #' plot(vol6)
 #' 
-#' # GARCH(1,1) model with external regressors
-#' vol7 <- spotvol(sample_returns_5min, method = "garch")
-#' plot(vol7)
+#' # compare regular GARCH(1,1) model to eGARCH, both with external regressors
+#' vol7 <- spotvol(sample_returns_5min, method = "garch", model = "sGARCH")
+#' vol8 <- spotvol(sample_returns_5min, method = "garch", model = "eGARCH")
+#' plot(as.numeric(t(vol7$spot)), type = "l")
+#' lines(as.numeric(t(vol8$spot])), col = "red")
+#' legend("topleft", c("GARCH", "eGARCH"), col = c("black", "red"), lty=1)
 #'
 #' @template references
 spotvol <- function(data, method = "detper", ..., on = "minutes", k = 5,
