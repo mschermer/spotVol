@@ -1,12 +1,13 @@
 Package: spotvolatility
 Title: Estimate Spot Volatility
 Version: 0.1
-Author: "Maarten Schermer <m.j.a.schermer@gmail.com>"
-License: <TBD>
+Author: Maarten Schermer, Kris Boudt, Jonathan Cornelissen
+Maintainer: Maarten Schermer <m.j.a.schermer@gmail.com>
+License: GPL-3
 Description: The spotvolatility package offers several methods to estimate spot
     volatility and its intraday seasonality, using high-frequency data.
 Depends:
-    R (>= 3.0.3),
+    R (>= 3.0.0),
     xts
 Suggests:
     highfrequency,
@@ -15,3 +16,6 @@ Suggests:
     knitr
 VignetteBuilder: knitr
 LazyData: true
+Thanks: Thanks to Roland Fried for kindly making his R code available to us,
+    which has been helpful in the implementation of his piecewise constant
+    volatility method in this package.
