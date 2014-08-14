@@ -849,11 +849,25 @@ garch_s <- function(mR, rdata = NULL, options = list())
                      mean.model = list(include.mean = FALSE))
   if (is.null(rdata))
   {
-    fit <- ugarchfit(spec = spec, data = as.numeric(t(mR)), solver = "nloptr")
+    fit <- tryCatch(ugarchfit(spec = spec, data = as.numeric(t(mR)), solver = "nloptr"),
+                    error = function(e) e,
+                    warning = function(w) w)
+    if (inherits(fit, what = c("error", "warning")))
+    {
+      stop(paste("GARCH optimization routine did not converge.\n", 
+                 "Message returned by ugarchfit:\n", fit))
+    }
     spot <- as.numeric(sigma(fit))
   }
   else {
-    fit <- ugarchfit(spec = spec, data = rdata, solver = "nloptr")
+    fit <- tryCatch(ugarchfit(spec = spec, data = rdata, solver = "nloptr"), 
+                    error = function(e) e,
+                    warning = function(w) w)
+    if (inherits(fit, what = c("error", "warning")))
+    {
+      stop(paste("GARCH optimization routine did not converge.\n", 
+                 "Message returned by ugarchfit:\n", fit))
+    } 
     spot <- sigma(fit)
   }
   out <- list(spot = spot, ugarchfit = fit)
