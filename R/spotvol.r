@@ -904,7 +904,7 @@ MDtest <- function(x, y, alpha = 0.005, type = "MDa")
 garch_s <- function(mR, rdata = NULL, options = list())
 {
   # default options, replace if user-specified
-  op <- list(model = "eGARCH", garchorder = c(1,1), dist = "norm", P1 = 5, 
+  op <- list(model = "eGARCH", order = c(1,1), dist = "norm", P1 = 5, 
              P2 = 5)
   op[names(options)] <- options
   
@@ -915,9 +915,9 @@ garch_s <- function(mR, rdata = NULL, options = list())
                            P2 = op$P2)
   spec <- ugarchspec(variance.model = list(model = op$model, 
                                            external.regressors = X,
-                                           garchorder = op$garchorder),                    
+                                           garchOrder = op$order),                    
                      mean.model = list(include.mean = FALSE),
-                                       distrubution.model = op$dist)
+                                       distribution.model = op$dist)
   if (is.null(rdata)) {
     cat(paste("Fitting", op$model, "model..."))
     fit <- tryCatch(ugarchfit(spec = spec, data = as.numeric(t(mR)), 
