@@ -227,6 +227,11 @@ NULL
 #' \code{model} \tab String specifying the type of test to be used. Options 
 #' include \code{"sGARCH", "eGARCH"}. See \code{\link{ugarchspec}} in the 
 #' \code{\link{rugarch}} package. Default = \code{"eGARCH"}. \cr
+#' \code{garchorder} \tab Numeric value of length 2, containing the order of 
+#' the GARCH model to be estimated. Default = \code{c(1,1)}. \cr
+#' \code{dist} \tab String specifying the distribution to be assumed on the
+#' innovations. See \code{distribution.model} in \code{\link{ugarchspec}} for 
+#' possible options. Default = \code{"norm"}. \cr
 #' \code{P1} \tab A positive integer corresponding to the number of cosinus 
 #' terms used in the flexible Fourier specification of the periodicity function. 
 #' Default = 5. \cr
@@ -899,7 +904,8 @@ MDtest <- function(x, y, alpha = 0.005, type = "MDa")
 garch_s <- function(mR, rdata = NULL, options = list())
 {
   # default options, replace if user-specified
-  op <- list(model = "eGARCH", P1 = 5, P2 = 5)
+  op <- list(model = "eGARCH", garchorder = c(1,1), dist = "norm", P1 = 5, 
+             P2 = 5)
   op[names(options)] <- options
   
   D <- nrow(mR)
@@ -908,9 +914,12 @@ garch_s <- function(mR, rdata = NULL, options = list())
   X <- intraday_regressors(D, N = N, order = 2, almond = FALSE, P1 = op$P1,
                            P2 = op$P2)
   spec <- ugarchspec(variance.model = list(model = op$model, 
-                                           external.regressors = X),
-                     mean.model = list(include.mean = FALSE))
+                                           external.regressors = X,
+                                           garchorder = op$garchorder),                    
+                     mean.model = list(include.mean = FALSE),
+                                       distrubution.model = op$dist)
   if (is.null(rdata)) {
+    cat(paste("Fitting", op$model, "model..."))
     fit <- tryCatch(ugarchfit(spec = spec, data = as.numeric(t(mR)), 
                               solver = "nloptr"),
                     error = function(e) e,
@@ -921,6 +930,7 @@ garch_s <- function(mR, rdata = NULL, options = list())
     }
     spot <- as.numeric(sigma(fit))
   } else {
+    cat(paste("Fitting", op$model, "model..."))
     fit <- tryCatch(ugarchfit(spec = spec, data = rdata, solver = "nloptr"), 
                     error = function(e) e,
                     warning = function(w) w)

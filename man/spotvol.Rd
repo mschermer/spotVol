@@ -268,6 +268,11 @@ Parameters:
 \code{model} \tab String specifying the type of test to be used. Options
 include \code{"sGARCH", "eGARCH"}. See \code{\link{ugarchspec}} in the
 \code{\link{rugarch}} package. Default = \code{"eGARCH"}. \cr
+\code{garchorder} \tab Numeric value of length 2, containing the order of
+the GARCH model to be estimated. Default = \code{c(1,1)}. \cr
+\code{dist} \tab String specifying the distribution to be assumed on the
+innovations. See \code{distribution.model} in \code{\link{ugarchspec}} for
+possible options. Default = \code{"norm"}. \cr
 \code{P1} \tab A positive integer corresponding to the number of cosinus
 terms used in the flexible Fourier specification of the periodicity function.
 Default = 5. \cr
