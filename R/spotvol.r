@@ -35,6 +35,13 @@
 #' windows. The spot volatility can then be estimated by evaluating 
 #' regular realized volatility estimators within each local window.
 #' 
+#' @section GARCH models with intraday seasonality:
+#' The package also includes an option to apply GARCH models, implemented by
+#' the \code{\link{rugarch}} package, to estimate spot volatility from intraday 
+#' data. This is done by including external regressors in the model. These 
+#' regressors are based on a flexible Fourier form, which was also used in the 
+#' stochastic and deterministic periodicity estimation methods.
+#' 
 #' @template references
 #' 
 #' @docType package
@@ -232,6 +239,8 @@ NULL
 #' \code{dist} \tab String specifying the distribution to be assumed on the
 #' innovations. See \code{distribution.model} in \code{\link{ugarchspec}} for 
 #' possible options. Default = \code{"norm"}. \cr
+#' \code{solver.control} \tab List containing solver options. 
+#' See \code{\link{ugarchfit}} for possible values. Default = \code{list()}. \cr
 #' \code{P1} \tab A positive integer corresponding to the number of cosinus 
 #' terms used in the flexible Fourier specification of the periodicity function. 
 #' Default = 5. \cr
@@ -905,7 +914,7 @@ garch_s <- function(mR, rdata = NULL, options = list())
 {
   # default options, replace if user-specified
   op <- list(model = "eGARCH", order = c(1,1), dist = "norm", P1 = 5, 
-             P2 = 5)
+             P2 = 5, solver.control = list())
   op[names(options)] <- options
   
   D <- nrow(mR)
@@ -921,7 +930,8 @@ garch_s <- function(mR, rdata = NULL, options = list())
   if (is.null(rdata)) {
     cat(paste("Fitting", op$model, "model..."))
     fit <- tryCatch(ugarchfit(spec = spec, data = as.numeric(t(mR)), 
-                              solver = "nloptr"),
+                              solver = "nloptr", 
+                              solver.control = op$solver.control),
                     error = function(e) e,
                     warning = function(w) w)
     if (inherits(fit, what = c("error", "warning"))) {
@@ -931,7 +941,8 @@ garch_s <- function(mR, rdata = NULL, options = list())
     spot <- as.numeric(sigma(fit))
   } else {
     cat(paste("Fitting", op$model, "model..."))
-    fit <- tryCatch(ugarchfit(spec = spec, data = rdata, solver = "nloptr"), 
+    fit <- tryCatch(ugarchfit(spec = spec, data = rdata, solver = "nloptr",
+                              solver.control = op$solver.control), 
                     error = function(e) e,
                     warning = function(w) w)
     if (inherits(fit, what = c("error", "warning"))) {

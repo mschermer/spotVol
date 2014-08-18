@@ -2,8 +2,10 @@
 %\VignetteEngine{knitr}
 
 \documentclass{article}
+
 <<setup, include=FALSE>>=
 options(width=60)
+library(knitr)
 knit_hooks$set(crop=function(before, options, envir){
 if (before) par(mar=c(2,2,1,1))
 })
@@ -12,7 +14,6 @@ if (before) par(mar=c(2,2,1,1))
 \begin{document}
 
 \title{
-%\flushleft{\textbf{Appendix: R package documentation}}\\[3ex] 
 \center{Estimating spot volatility in R:\\ 
 The spotvolatility package}}
 \author{Maarten Schermer}
@@ -23,9 +24,15 @@ The spotvolatility package}}
 \section{General usage}
 The \texttt{spotvolatility} package offers several methods to estimate spot volatility and its intraday seasonality, using high-frequency data. It is an extension of the function \texttt{spotvol} in the \texttt{highfrequency} package. That function is included as one of the methods in this package, and multiple other spot volatility estimation methods from recent academic literature have been added.\\[2ex]
 To install the package:
-<<message=FALSE>>=
+<<eval=FALSE>>=
 library(devtools)
 install_github("mschermer/spotVol")
+@
+Due to the computations in this vignette taking quite a lot of time, automatic vignette building has been disabled for this package. Some time has been saved by imposing maximum numbers of iterations for the examples, but they will still take a while to perform. If you want to build this vignette yourself, you can run the following commands:
+<<eval=FALSE>>=
+library(tools)
+library(spotvolatility)
+buildVignettes("spotvolatility")
 @
 The spot volatility $\sigma_{t,n}$ can be described as the the volatility of returns on a certain moment $n$ during day $t$. These returns $r_{t,n}$ are commonly modeled as 
 \begin{equation} \label{eq:returns}
@@ -160,6 +167,17 @@ vol7 <- spotvol(simdata, method = "piecewise", m = 200, n = 100, online = TRUE, 
 plot(vol7)
 @
 This can lead to a few unreliable estimates after each change point, when only a couple of observations are available. We also used a different estimator of the volatility for this plot. It can be specified by the option \texttt{volest}.
+\subsection{GARCH with intraday seasonality - \texttt{"garch"}}
+The package also includes an option to apply GARCH models, implemented by the \texttt{rugarch} package, to estimate spot volatility from intraday data. This is done by including external regressors in the GARCH model. These regressors are based on a flexible Fourier form, which was also used in the stochastic and deterministic periodicity estimation methods.\\[2ex]
+The \texttt{rugarch} package offers several GARCH specifications, which can be chosen from using the \texttt{model} argument in the \texttt{spotvol} function. Depending on the data, some models will not reach convergence in the minimization algorithm though, so it is advised to try multiple specifications. As an example, we will compare a standard GARCH(1,1) model to an eGARCH(1,1) specification: 
+<<crop=TRUE,fig.height=3,tidy=TRUE>>=
+vol8 <- spotvol(sample_returns_5min, method = "garch", model = "sGARCH", solver.control = list(maxeval = 1000))
+vol9 <- spotvol(sample_returns_5min, method = "garch", model = "eGARCH", solver.control = list(maxeval = 1000))
+plot(as.numeric(t(vol8$spot))[6000:7000], type = "l")
+lines(as.numeric(t(vol9$spot))[6000:7000], col = "red")
+legend("topleft", c("GARCH", "eGARCH"), col = c("black", "red"), lty=1)
+@
+This plot highlights the huge effect an outlier can have on the estimation. The GARCH models seem particulary susceptible to these, the eGARCH in this case even more so than the standard GARCH model.
 \section*{References}
 Andersen, T. G. and T. Bollerslev (1997). Intraday periodicity and volatility persistence in financial markets. Journal of Empirical Finance 4, 115-158.\\[2ex]
 Beltratti, A. and C. Morana (2001). Deterministic and stochastic methods for estimation of intraday seasonal components with high frequency data. Economic Notes 30, 205-234.\\[2ex]

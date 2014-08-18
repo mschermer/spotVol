@@ -1,6 +1,6 @@
 Package: spotvolatility
 Title: Estimate Spot Volatility
-Version: 0.1
+Version: 0.2
 Author: Maarten Schermer, Kris Boudt, Jonathan Cornelissen
 Maintainer: Maarten Schermer <m.j.a.schermer@gmail.com>
 License: GPL-3
@@ -15,7 +15,12 @@ Suggests:
     timeDate,
     knitr
 VignetteBuilder: knitr
+BuildVignettes: false
 LazyData: true
-Thanks: Thanks to Roland Fried for kindly making his R code available to us,
-    which has been helpful in the implementation of his piecewise constant
-    volatility method in this package.
+Thanks: This package was developed as a project for the Google Summer of Code
+    2014. I would like to thank Google for financial support and the R project
+    for Statistical Computing for endorsing this project. My thanks also go out
+    to Kris Boudt, Jonathan Cornelissen and Daniele Signori, who acted as my
+    mentors during this Google Summer of Code. Thanks also to Roland Fried, for
+    kindly making his R code available, which has been helpful in the
+    implementation of his piecewise constant volatility method in this package.

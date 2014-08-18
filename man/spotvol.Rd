@@ -273,6 +273,8 @@ the GARCH model to be estimated. Default = \code{c(1,1)}. \cr
 \code{dist} \tab String specifying the distribution to be assumed on the
 innovations. See \code{distribution.model} in \code{\link{ugarchspec}} for
 possible options. Default = \code{"norm"}. \cr
+\code{solver.control} \tab List containing solver options.
+See \code{\link{ugarchfit}} for possible values. Default = \code{list()}. \cr
 \code{P1} \tab A positive integer corresponding to the number of cosinus
 terms used in the flexible Fourier specification of the periodicity function.
 Default = 5. \cr

@@ -1,12 +1,18 @@
 ## ----setup, include=FALSE---------------------------------
 options(width=60)
+library(knitr)
 knit_hooks$set(crop=function(before, options, envir){
 if (before) par(mar=c(2,2,1,1))
 })
 
-## ----message=FALSE----------------------------------------
-library(devtools)
-install_github("mschermer/spotVol")
+## ----eval=FALSE-------------------------------------------
+#  library(devtools)
+#  install_github("mschermer/spotVol")
+
+## ----eval=FALSE-------------------------------------------
+#  library(tools)
+#  library(spotvolatility)
+#  buildVignettes("spotvolatility")
 
 ## ----message=FALSE----------------------------------------
 library(spotvolatility)
@@ -78,4 +84,11 @@ plot(vol6)
 ## ----crop=TRUE,fig.height=3,tidy=TRUE---------------------
 vol7 <- spotvol(simdata, method = "piecewise", m = 200, n = 100, online = TRUE, volest = "tau")
 plot(vol7)
+
+## ----crop=TRUE,fig.height=3,tidy=TRUE---------------------
+vol8 <- spotvol(sample_returns_5min, method = "garch", model = "sGARCH", solver.control = list(maxeval = 1000))
+vol9 <- spotvol(sample_returns_5min, method = "garch", model = "eGARCH", solver.control = list(maxeval = 1000))
+plot(as.numeric(t(vol8$spot))[6000:7000], type = "l")
+lines(as.numeric(t(vol9$spot))[6000:7000], col = "red")
+legend("topleft", c("GARCH", "eGARCH"), col = c("black", "red"), lty=1)
 
