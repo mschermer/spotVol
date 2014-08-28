@@ -293,10 +293,10 @@ Along with the spot volatility estimates, this method will return the
 \code{\link{ugarchfit}} object used by the \code{\link{rugarch}} package.
 }
 \examples{
-data(sample_prices_5min)
+data(sample_real5minprices)
 
 # default method, deterministic periodicity
-vol1 <- spotvol(sample_prices_5min)
+vol1 <- spotvol(sample_real5minprices)
 par.def <- par(no.readonly = TRUE)
 plot(vol1)
 par(par.def)
@@ -307,10 +307,12 @@ init = list(sigma = 0.03, sigma_mu = 0.005, sigma_h = 0.007,
             delta_c = c(0.25, -0.05, -0.2, 0.13, 0.02), delta_s = c(-1.2,
             0.11, 0.26, -0.03, 0.08))
 # next method will take around 110 iterations
-vol2 <- spotvol(sample_prices_5min, method = "stochper", init = init)
+vol2 <- spotvol(sample_real5minprices, method = "stochper", init = init)
 plot(as.numeric(vol1$spot[1:780]), type="l")
 lines(as.numeric(vol2$spot[1:780]), col="red")
 legend("topright", c("detper", "stochper"), col = c("black", "red"), lty=1)
+
+data(sample_returns_5min)
 
 # various kernel estimates
 h1 = bw.nrd0((1:nrow(sample_returns_5min))*(5*60))
