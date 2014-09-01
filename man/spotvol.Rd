@@ -212,7 +212,7 @@ the estimation results are appropiate.
 One way to estimate \eqn{h}, is by using cross-validation. For each day in
 the sample, \eqn{h} is chosen as to minimize the Integrated Square Error,
 which is a function of \eqn{h}. However, this function often has multiple
-local minima, or no minima at all (\eqn{h -> \Inf}). To ensure a reasonable
+local minima, or no minima at all (\eqn{h -> \infty}). To ensure a reasonable
 optimum is reached, strict boundaries have to be imposed on \eqn{h}. These
 can be specified by \code{lower} and \code{upper}, which by default are
 \eqn{0.1n^{-0.2}} and \eqn{n^{-0.2}} respectively, where \eqn{n} is the

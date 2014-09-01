@@ -42,7 +42,7 @@ where $\varepsilon_{t,n} \sim \mbox{IID}(0, \frac{1}{N})$ is a white noise proce
 The spot volatility estimates $\hat{sigma}_{t,n}$ can be estimated from these returns using the \texttt{spotvol} function. The estimates are stored as \texttt{spot} in a \texttt{spotvol} object, which is a list containing certain outputs of the function, depending on the method used. These estimates can be called in the following way
 <<message=FALSE>>=
 library(spotvolatility)
-out <- spotvol(sample_prices_5min)
+out <- spotvol(sample_real5minprices)
 class(out)
 sigma_hat <- out$spot
 @
@@ -54,8 +54,8 @@ The \texttt{spotvol} function accepts two sorts of input:
 \end{enumerate}
 The first can be used for raw price data, i.e. from the NYSE TAQ database. The \texttt{highfrequency} package offers several methods to process data files into \texttt{xts} format. The \texttt{spotvol} function will then aggregate this price data to the frequency specified by the user and calculate the return series.
 <<tidy=TRUE>>=
-str(sample_prices_5min)
-out <- spotvol(sample_prices_5min)
+str(sample_real5minprices)
+out <- spotvol(sample_real5minprices)
 @
 The second way of inputting data is through a \texttt{matrix}, which can be convenient if your data has already been processed. No further permutations will be made to the data, as it is assumed to be in the right format. Therefore, it should satisfy the following restrictions:
 \begin{itemize}
@@ -84,8 +84,8 @@ Each of these has different parameters to be specified by the user. These can al
 \subsection{Output}
 The \texttt{spotvol} function returns an object of the \texttt{spotvol} class. This is a list of which the contents depend on the used method. In any case, it includes the variable \texttt{spot}, which contains all spot volatility estimates as an \texttt{xts} or \texttt{matrix} object (depending on the input). The following example shows the different outputs for methods \texttt{"detper"} and \texttt{"stochper"}:
 <<results='hide'>>=
-out1 <- spotvol(sample_prices_5min, method = "detper")
-out2 <- spotvol(sample_prices_5min, method = "stochper")
+out1 <- spotvol(sample_real5minprices, method = "detper")
+out2 <- spotvol(sample_real5minprices, method = "stochper")
 @
 <<>>=
 names(out1)
