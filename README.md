@@ -1,58 +1,47 @@
 spotVol
 =======
 
-Repository for R package spotVol, which will be developed during the Google Summer of Code 2014
+Repository for R package spotvolatility, which was developed during the Google Summer of Code 2014
 
 Overview: https://www.google-melange.com/gsoc/project/details/google/gsoc2014/maarten473/5668600916475904
 
-More information (copied from http://rwiki.sciviews.org/doku.php?id=developers:projects:gsoc2014:spotvol):
 
-Spot volatility estimation: Methods and applications
+The spotvolatility package offers several methods to estimate spot volatility and its intraday seasonality, using high-frequency data.
 
+The following spot volatility estimation methods have been implemented:
 
-Summary
+Deterministic periodicity
 
-This project aims at expanding the R package highfrequency with a broad range of functionality allowing to estimate the intraday volatility of highfrequency return series.
+The spot volatility is decomposed into a a deterministic periodic factor f_i (identical for every day in the sample) and a daily factor s_t (identical for all observations within a day). Both components are then estimated separately. For more details, see Taylor and Xu (1997) and Andersen and Bollerslev (1997). The jump robust versions by Boudt et al. (2011) have also been implemented.
 
+Stochastic periodicity
 
-Description
+This method by Beltratti and Morana (2001) assumes the periodicity factor to be stochastic. The spot volatility estimation is split into four components: a random walk, an autoregressive process, a stochastic cyclical process and a deterministic cyclical process. The model is estimated using a quasi-maximum likelihood method based on the Kalman Filter. The package FKF is used to apply the Kalman filter.
 
-Spot volatility estimates are important for highfrequency trading signal generation and risk management. Several spot volatility estimators have been proposed over the last years. This project aims at implementing them in the R package highfrequency:
+Nonparametric filtering
 
-i. The stochastic volatility approach of Beltratti and Morana (2001), which, in particular includes both deterministic and stochastic periodic terms. The stochastic volatility model can be casted in state space form and estimated by maximum likelihood.
+This method by Kristensen (2010) filters the spot volatility in a nonparametric way by applying kernel weights to the standard realized volatility estimator. Different kernels and bandwidths can be used to focus on specific characteristics of the volatility process.
 
-ii. The non-parametric kernel approach of Kristensen (2010).
+Piecewise constant volatility
 
-iii. The piecewise constant volatility approach in Fried (2012).
+Another nonparametric method is that of Fried (2012), which assumes the volatility to be piecewise constant over local windows. Robust two-sample tests are applied to detect changes in variability between subsequent windows. The spot volatility can then be estimated by evaluating regular realized volatility estimators within each local window.
 
-iv. The kalman filter of periodic intraday volatility in Bos, Janus and Koopman (2012).
+GARCH models with intraday seasonality
 
-v. The GARCH + periodicity factor of Giot (2005), Chu and Lam (2011) and So and Xu (2013).
-
-vi. Periodic egarch model proposed by Bollerslev and Ghysels (1996).
-
-Besides estimation functions, the project aims at creating simulation functions to generate highfrequency data according to various highfrequency models with periodicity in the volatility of the diffusion.
-Finally, functions should be developed to test for jumps based on the estimated spot volatility and to forecast intraday value-at-risk under different distributional assumptions.
-This project is most related to the function spotVol in the highfrequency package, which implements the spot volatility estimators proposed in Boudt, Croux and Laurent (2008).
+The package also includes an option to apply GARCH models, implemented by the rugarch package, to estimate spot volatility from intraday data. This is done by including external regressors in the model. These regressors are based on a flexible Fourier form, which was also used in the stochastic and deterministic periodicity estimation methods.
 
 References
 
-Beltratti, Andrea and Claudio Morana (2001). Deterministic and stochastic methods for estimation of intraday seasonal components with high frequency data. Economic Notes 30, 205-234.
+Andersen, T. G. and T. Bollerslev (1997). Intraday periodicity and volatility persistence in financial markets. Journal of Empirical Finance 4, 115-158.
 
-Bollerslev, T., and E. Ghysels. 1996. Periodic Autoregressive Conditional Heteroscedasticity. Journal of Business & Economic Statistics 14, 139–151.
+Beltratti, A. and C. Morana (2001). Deterministic and stochastic methods for estimation of intraday seasonal components with high frequency data. Economic Notes 30, 205-234.
 
-Bos, Charles, Janus, Pawel and Siem Jan Koopman (2012). Spot variance path estimation and its application to high-frequency jump testing. Journal of financial econometrics 10, 354-389.
-
-Boudt, Kris, Croux, Christophe and Laurent, Sebastien (2011) Robust estimation of intraweek periodicity in volatility and jump detection. Journal of Empirical Finance 18, 353-369.
-
-Chu, Carlin C.F and K.P. Lam (2011) Modeling intraday volatility: A new consideration. Journal of International Markets, Institutions and Money 21, 388-418.
+Boudt K., Croux C. and Laurent S. (2011). Robust estimation of intraweek periodicity in volatility and jump detection. Journal of Empirical Finance 18, 353-367.
 
 Fried, Roland (2012). On the online estimation of local constant volatilities. Computational Statistics and Data Analysis 56, 3080-3090.
 
-Giot, Pierre (2005). Market risk models for intraday data. European Journal of Finance 11, 309-324.
-
 Kristensen, Dennis (2010). Nonparametric filtering of the realized spot volatility: A kernel-based approach. Econometric Theory 26, 60-93.
 
-So, Mike K.P. and Rui Xu (2013) Forecasting intraday volatility and value-at-risk with highfrequency data. Asia-Pacific Financial Markets 20, 83-111.
+Taylor, S. J. and X. Xu (1997). The incremental volatility information in one million foreign exchange quotations. Journal of Empirical Finance 4, 317-340.
 
 
