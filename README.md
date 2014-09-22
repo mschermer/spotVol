@@ -5,6 +5,12 @@ Repository for R package spotvolatility, which was developed during the Google S
 
 Overview: https://www.google-melange.com/gsoc/project/details/google/gsoc2014/maarten473/5668600916475904
 
+To install the package, run the following R commands:
+
+library(devtools)
+install_github("mschermer/spotVol")
+
+Description:
 
 The spotvolatility package offers several methods to estimate spot volatility and its intraday seasonality, using high-frequency data.
 
