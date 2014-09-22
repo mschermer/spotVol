@@ -8,6 +8,7 @@ Overview: https://www.google-melange.com/gsoc/project/details/google/gsoc2014/ma
 To install the package, run the following R commands:
 
 library(devtools)
+
 install_github("mschermer/spotVol")
 
 Description:
